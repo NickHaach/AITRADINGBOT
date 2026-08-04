@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Env & secrets
+.env
+.env.local
+*.pem
+*.key
+secrets/
+
+# Data / models
+data/raw/
+data/processed/
+models/artifacts/
+*.parquet
+*.h5
+*.onnx
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+# Logs / runtime
+logs/
+*.log
+.tmp/

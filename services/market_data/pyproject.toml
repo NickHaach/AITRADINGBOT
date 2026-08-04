@@ -1,0 +1,23 @@
+[project]
+name = "market-data"
+version = "0.1.0"
+description = "Market Data Engine — OHLCV streams, volatility, liquidity features"
+requires-python = ">=3.9"
+dependencies = [
+  "ai-trading-shared",
+  "fastapi>=0.112",
+  "uvicorn[standard]>=0.30",
+  "httpx>=0.27",
+  "numpy>=1.26",
+  "celery[redis]>=5.4",
+]
+
+[tool.uv.sources]
+ai-trading-shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/market_data"]
