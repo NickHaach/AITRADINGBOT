@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from ai_trading_shared.config import get_settings
 from ai_trading_shared.domain.enums import DomainModel, new_id
 
 __version__ = "0.1.0"
@@ -299,3 +300,37 @@ async def related_tickers(ticker: str, limit: int = Query(10, ge=1, le=50)) -> L
 @app.get("/v1/graph/stats")
 async def stats() -> dict:
     return graph.stats()
+
+
+@app.post("/v1/graph/persist")
+async def persist_graph() -> dict:
+    """Persist in-memory graph to SQL when ENABLE_SQL_PERSISTENCE=true."""
+    settings = get_settings()
+    if not settings.enable_sql_persistence:
+        return {"persisted": False, "reason": "enable_sql_persistence_required"}
+    if not settings.database_url.startswith("postgresql"):
+        return {"persisted": False, "reason": "sql_persist_requires_postgres"}
+    from ai_trading_shared.infrastructure.database import create_engine, create_session_factory
+    from knowledge_graph.persistence import SqlKnowledgeGraphStore
+
+    engine = create_engine(settings.database_url)
+    store = SqlKnowledgeGraphStore(create_session_factory(engine))
+    result = await store.persist(graph)
+    return {"persisted": True, **result}
+
+
+@app.post("/v1/graph/load")
+async def load_graph() -> dict:
+    settings = get_settings()
+    if not settings.enable_sql_persistence:
+        return {"loaded": False, "reason": "enable_sql_persistence_required"}
+    if not settings.database_url.startswith("postgresql"):
+        return {"loaded": False, "reason": "sql_load_requires_postgres"}
+    from ai_trading_shared.infrastructure.database import create_engine, create_session_factory
+    from knowledge_graph.persistence import SqlKnowledgeGraphStore
+
+    global graph
+    engine = create_engine(settings.database_url)
+    store = SqlKnowledgeGraphStore(create_session_factory(engine))
+    graph = await store.load()
+    return {"loaded": True, **graph.stats()}

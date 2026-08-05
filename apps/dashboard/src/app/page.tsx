@@ -6,6 +6,7 @@ import {
   fetchHealth,
   fetchNews,
 } from "@/lib/api";
+import { MarketChartPanel } from "@/components/MarketChartPanel";
 
 function badgeClass(level: string): string {
   const v = level.toLowerCase();
@@ -55,6 +56,10 @@ export default async function HomePage() {
         <Metric label="Cash" value={`$${portfolio.cash.toLocaleString()}`} />
         <Metric label="Drawdown" value={pct(portfolio.drawdown)} />
         <Metric label="News / filings" value={`${news.length} / ${announcements.length}`} />
+      </section>
+
+      <section className="mb-12">
+        <MarketChartPanel ticker="AAPL" />
       </section>
 
       <div className="mb-12 grid gap-8 lg:grid-cols-2">

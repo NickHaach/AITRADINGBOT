@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Annotated, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from ai_trading_shared.config import Settings, get_settings
+from ai_trading_shared.infrastructure.database import create_engine, create_session_factory
+from ai_trading_shared.infrastructure.repositories.persistence import MarketPersistenceRepository
 from ai_trading_shared.utils.logging import configure_logging, get_logger
 from market_data.application.service import MarketDataService
 from market_data.infrastructure.adapters.mock_provider import MockMarketDataProvider
 from market_data.infrastructure.adapters.polygon_provider import PolygonMarketDataProvider
+from market_data.infrastructure.repositories.dual_write import DualWriteMarketRepository
 from market_data.infrastructure.repositories.memory import InMemoryMarketRepository
 
 logger = get_logger(__name__)
@@ -61,7 +65,18 @@ def build_service(settings: Settings) -> MarketDataService:
     else:
         key = settings.polygon_api_key.get_secret_value()
         provider = PolygonMarketDataProvider(api_key=key) if key else MockMarketDataProvider()
-    return MarketDataService(provider=provider, repository=InMemoryMarketRepository())
+
+    sql_repo = None
+    if settings.enable_sql_persistence and settings.database_url.startswith("postgresql"):
+        try:
+            engine = create_engine(settings.database_url)
+            sql_repo = MarketPersistenceRepository(create_session_factory(engine))
+            logger.info("market_sql_dual_write_enabled")
+        except Exception:
+            logger.exception("market_sql_dual_write_unavailable")
+
+    repo = DualWriteMarketRepository(memory=InMemoryMarketRepository(), sql=sql_repo)
+    return MarketDataService(provider=provider, repository=repo)
 
 
 def get_service() -> MarketDataService:
@@ -158,6 +173,35 @@ async def get_quote(
 @app.get("/v1/market/tickers")
 async def list_tickers(service: Annotated[MarketDataService, Depends(get_service)]) -> List[str]:
     return await service.list_tickers()
+
+
+@app.websocket("/v1/market/stream")
+async def market_stream(websocket: WebSocket, tickers: str = "AAPL,NVDA,SPY") -> None:
+    """Push quotes every 2s for dashboard live charts."""
+    await websocket.accept()
+    symbols = [t.strip().upper() for t in tickers.split(",") if t.strip()] or ["AAPL"]
+    service = get_service()
+    try:
+        while True:
+            payload = []
+            for symbol in symbols:
+                try:
+                    quote = await service.get_quote(symbol)
+                    payload.append(
+                        {
+                            "ticker": quote.ticker,
+                            "bid": float(quote.bid),
+                            "ask": float(quote.ask),
+                            "last": float(quote.last),
+                            "timestamp": quote.timestamp.isoformat(),
+                        }
+                    )
+                except Exception:
+                    logger.exception("stream_quote_failed", ticker=symbol)
+            await websocket.send_json({"quotes": payload})
+            await asyncio.sleep(2.0)
+    except WebSocketDisconnect:
+        logger.info("market_stream_disconnected")
 
 
 def _features(f) -> FeaturesResponse:

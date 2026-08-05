@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+asyncpg://trading:trading_dev_password@localhost:5432/ai_trading"
     )
+    # Opt-in durable dual-write for market bars/features and graph snapshots.
+    enable_sql_persistence: bool = False
     redis_url: str = "redis://localhost:6379/0"
     celery_broker_url: str = "redis://localhost:6379/1"
     celery_result_backend: str = "redis://localhost:6379/2"

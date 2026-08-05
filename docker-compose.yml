@@ -10,6 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/db/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+      - ./infra/db/migrations/002_market_graph_outcomes.sql:/docker-entrypoint-initdb.d/002_market_graph_outcomes.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U trading -d ai_trading"]
       interval: 5s
@@ -89,8 +90,13 @@ services:
     env_file: .env
     environment:
       USE_MOCK_MARKET_DATA: "true"
+      DATABASE_URL: postgresql+asyncpg://trading:trading_dev_password@postgres:5432/ai_trading
+      ENABLE_SQL_PERSISTENCE: "true"
     ports:
       - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   company_announcements:
     build:
@@ -125,6 +131,8 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NEXT_PUBLIC_NEWS_URL: http://localhost:8001
+      NEXT_PUBLIC_MARKET_URL: http://localhost:8002
+      NEXT_PUBLIC_ANN_URL: http://localhost:8003
     depends_on:
       - api_gateway
       - news_intelligence
