@@ -202,6 +202,7 @@ class TradingPipeline:
                 entry_price=trade.price,
                 quantity=trade.quantity,
                 horizon_days=signal.time_horizon_days,
+                features=dict(prediction.features or {}),
             )
             logger.info("trade_filled", ticker=ticker, side=filled.side.value)
 

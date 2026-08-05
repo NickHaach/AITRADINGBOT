@@ -23,13 +23,16 @@
 | **Online temperature calibration refresh** (API + Celery) | Done |
 | **Shared calibration via Redis** (memory fallback) | Done |
 | **GBM joblib artifacts + production load** | Done |
+| **JWT portfolio proxy** on API gateway | Done |
+| **Aether Desk login** + authed book/recs | Done |
+| **GBM train from real outcome feature rows** | Done |
 
 ## Next increments
 
-1. Auth-gated gateway proxy for portfolio (JWT) + dashboard login
-2. TradingView lightweight widgets (optional upgrade over Recharts tape)
-3. Object storage (S3) behind the same artifact URI interface
-4. Train GBM from real closed-trade feature rows (not synthetic)
-5. Wire portfolio recommendations to production GBM scores explicitly
+1. TradingView lightweight widgets (optional upgrade over Recharts tape)
+2. Object storage (S3) behind the same artifact URI interface
+3. Lock news/market/announcements behind JWT once desk auth is default
+4. Refresh-token rotation + HttpOnly cookies instead of localStorage
+5. End-to-end paper session UI (run cycle button for traders)
 
 Each increment must ship with unit tests, module README, and mock adapters.

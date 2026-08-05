@@ -3,10 +3,9 @@ import {
   fetchAnnouncements,
   fetchHealth,
   fetchNews,
-  fetchPortfolio,
-  fetchRecommendations,
 } from "@/lib/api";
 import { MarketChartPanel } from "@/components/MarketChartPanel";
+import { DeskSession } from "@/components/DeskSession";
 
 function badgeClass(level: string): string {
   const v = level.toLowerCase();
@@ -23,12 +22,10 @@ function pct(n: number): string {
 }
 
 export default async function HomePage() {
-  const [news, health, announcements, portfolio, recs] = await Promise.all([
+  const [news, health, announcements] = await Promise.all([
     fetchNews(8),
     fetchHealth(),
     fetchAnnouncements(6),
-    fetchPortfolio(),
-    fetchRecommendations(),
   ]);
 
   return (
@@ -52,97 +49,126 @@ export default async function HomePage() {
         </div>
       </header>
 
-      <section className="mb-10 grid gap-4 md:grid-cols-4">
-        <Metric label="Equity" value={`$${portfolio.equity.toLocaleString()}`} />
-        <Metric label="Cash" value={`$${portfolio.cash.toLocaleString()}`} />
-        <Metric label="Drawdown" value={pct(portfolio.drawdown)} />
-        <Metric label="News / filings" value={`${news.length} / ${announcements.length}`} />
-      </section>
+      <DeskSession>
+        {({ user, portfolio, recs }) => (
+          <>
+            <section className="mb-10 grid gap-4 md:grid-cols-4">
+              <Metric
+                label="Equity"
+                value={user ? `$${portfolio.equity.toLocaleString()}` : "—"}
+              />
+              <Metric label="Cash" value={user ? `$${portfolio.cash.toLocaleString()}` : "—"} />
+              <Metric label="Drawdown" value={user ? pct(portfolio.drawdown) : "—"} />
+              <Metric label="News / filings" value={`${news.length} / ${announcements.length}`} />
+            </section>
 
-      <section className="mb-12">
-        <MarketChartPanel ticker="AAPL" />
-      </section>
+            <section className="mb-12">
+              <MarketChartPanel ticker="AAPL" />
+            </section>
 
-      <div className="mb-12 grid gap-8 lg:grid-cols-2">
-        <section>
-          <SectionTitle
-            title="Positions"
-            hint={portfolio.source === "live" ? "paper book from portfolio :8008" : "demo fallback — start portfolio on :8008"}
-          />
-          <div className="overflow-hidden border border-line">
-            <table className="w-full text-left text-sm">
-              <thead className="font-mono text-[11px] uppercase tracking-wider text-mist/50">
-                <tr className="border-b border-line">
-                  <th className="px-4 py-3">Ticker</th>
-                  <th className="px-4 py-3">Qty</th>
-                  <th className="px-4 py-3">Last</th>
-                  <th className="px-4 py-3">PnL</th>
-                  <th className="px-4 py-3">Weight</th>
-                </tr>
-              </thead>
-              <tbody>
-                {portfolio.positions.map((p) => (
-                  <tr key={p.ticker} className="border-b border-line/70 last:border-0">
-                    <td className="px-4 py-3 font-medium text-white">{p.ticker}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{p.qty}</td>
-                    <td className="px-4 py-3 font-mono text-xs">${p.last.toFixed(2)}</td>
-                    <td className={`px-4 py-3 font-mono text-xs ${p.pnl >= 0 ? "text-signal" : "text-danger"}`}>
-                      {p.pnl >= 0 ? "+" : ""}
-                      {p.pnl}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs">{pct(p.weight)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+            <div className="mb-12 grid gap-8 lg:grid-cols-2">
+              <section>
+                <SectionTitle
+                  title="Positions"
+                  hint={
+                    !user
+                      ? "sign in for paper book"
+                      : portfolio.source === "live"
+                        ? "via gateway JWT → portfolio"
+                        : "demo fallback"
+                  }
+                />
+                {!user ? (
+                  <Empty hint="Authenticate to load positions through the API gateway." />
+                ) : (
+                  <div className="overflow-hidden border border-line">
+                    <table className="w-full text-left text-sm">
+                      <thead className="font-mono text-[11px] uppercase tracking-wider text-mist/50">
+                        <tr className="border-b border-line">
+                          <th className="px-4 py-3">Ticker</th>
+                          <th className="px-4 py-3">Qty</th>
+                          <th className="px-4 py-3">Last</th>
+                          <th className="px-4 py-3">PnL</th>
+                          <th className="px-4 py-3">Weight</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {portfolio.positions.map((p) => (
+                          <tr key={p.ticker} className="border-b border-line/70 last:border-0">
+                            <td className="px-4 py-3 font-medium text-white">{p.ticker}</td>
+                            <td className="px-4 py-3 font-mono text-xs">{p.qty}</td>
+                            <td className="px-4 py-3 font-mono text-xs">${p.last.toFixed(2)}</td>
+                            <td
+                              className={`px-4 py-3 font-mono text-xs ${p.pnl >= 0 ? "text-signal" : "text-danger"}`}
+                            >
+                              {p.pnl >= 0 ? "+" : ""}
+                              {p.pnl}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs">{pct(p.weight)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
 
-        <section>
-          <SectionTitle title="Risk dashboard" hint="hard gates from Risk Engine" />
-          <ul className="space-y-3">
-            <RiskRow label="Max position" value={pct(RISK_LIMITS.maxPositionPct)} ok />
-            <RiskRow label="Daily loss limit" value={pct(RISK_LIMITS.dailyLossPct)} ok />
-            <RiskRow label="Max drawdown" value={pct(RISK_LIMITS.maxDrawdownPct)} ok />
-            <RiskRow label="Max sector exposure" value={pct(RISK_LIMITS.maxSectorPct)} ok />
-            <RiskRow
-              label="Current drawdown"
-              value={pct(portfolio.drawdown)}
-              ok={portfolio.drawdown < RISK_LIMITS.maxDrawdownPct}
-            />
-            <li className="border border-line bg-panel/40 px-4 py-3 text-sm text-mist/80">
-              Kill switch off · live trading disabled · paper broker only
-            </li>
-          </ul>
-        </section>
-      </div>
-
-      <section className="mb-12">
-        <SectionTitle title="AI recommendations" hint="explainability panel" />
-        <div className="grid gap-4 md:grid-cols-2">
-          {recs.map((r) => (
-            <article key={r.ticker} className="border border-line bg-panel/40 px-5 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-lg text-white">{r.ticker}</h3>
-                <span className={`font-mono text-xs uppercase ${badgeClass(r.action)}`}>{r.action}</span>
-              </div>
-              <p className="mt-2 text-sm text-mist/85">{r.why}</p>
-              <div className="mt-3 flex flex-wrap gap-3 font-mono text-[11px] text-mist/55">
-                <span>conf {pct(r.confidence)}</span>
-                <span>E[r] {pct(r.expectedReturn)}</span>
-              </div>
-              <div className="mt-3">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-mist/40">Risks</p>
-                <ul className="mt-1 space-y-1 text-sm text-mist/75">
-                  {r.risks.map((risk) => (
-                    <li key={risk}>· {risk}</li>
-                  ))}
+              <section>
+                <SectionTitle title="Risk dashboard" hint="hard gates from Risk Engine" />
+                <ul className="space-y-3">
+                  <RiskRow label="Max position" value={pct(RISK_LIMITS.maxPositionPct)} ok />
+                  <RiskRow label="Daily loss limit" value={pct(RISK_LIMITS.dailyLossPct)} ok />
+                  <RiskRow label="Max drawdown" value={pct(RISK_LIMITS.maxDrawdownPct)} ok />
+                  <RiskRow label="Max sector exposure" value={pct(RISK_LIMITS.maxSectorPct)} ok />
+                  <RiskRow
+                    label="Current drawdown"
+                    value={user ? pct(portfolio.drawdown) : "—"}
+                    ok={!user || portfolio.drawdown < RISK_LIMITS.maxDrawdownPct}
+                  />
+                  <li className="border border-line bg-panel/40 px-4 py-3 text-sm text-mist/80">
+                    Kill switch off · live trading disabled · paper broker only
+                  </li>
                 </ul>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+              </section>
+            </div>
+
+            <section className="mb-12">
+              <SectionTitle title="AI recommendations" hint="explainability panel" />
+              {!user ? (
+                <Empty hint="Sign in to load live recommendations." />
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {recs.map((r) => (
+                    <article key={r.ticker} className="border border-line bg-panel/40 px-5 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-lg text-white">{r.ticker}</h3>
+                        <span className={`font-mono text-xs uppercase ${badgeClass(r.action)}`}>
+                          {r.action}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-mist/85">{r.why}</p>
+                      <div className="mt-3 flex flex-wrap gap-3 font-mono text-[11px] text-mist/55">
+                        <span>conf {pct(r.confidence)}</span>
+                        <span>E[r] {pct(r.expectedReturn)}</span>
+                      </div>
+                      <div className="mt-3">
+                        <p className="font-mono text-[10px] uppercase tracking-wider text-mist/40">
+                          Risks
+                        </p>
+                        <ul className="mt-1 space-y-1 text-sm text-mist/75">
+                          {r.risks.map((risk) => (
+                            <li key={risk}>· {risk}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </DeskSession>
 
       <div className="mb-12 grid gap-8 lg:grid-cols-2">
         <section>

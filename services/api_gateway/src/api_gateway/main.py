@@ -290,3 +290,77 @@ async def platform_status(
             "max_drawdown_pct": settings.risk_max_drawdown_pct,
         },
     }
+
+
+async def _proxy_portfolio(
+    method: str,
+    path: str,
+    *,
+    settings: Settings,
+    params: dict | None = None,
+) -> Any:
+    import httpx
+
+    url = f"{settings.portfolio_service_url.rstrip('/')}{path}"
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.request(method, url, params=params)
+    except httpx.RequestError as exc:
+        logger.exception("portfolio_proxy_unreachable", url=url)
+        raise HTTPException(status_code=503, detail=f"Portfolio service unavailable: {exc}") from exc
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    if not response.content:
+        return {}
+    return response.json()
+
+
+@app.get("/v1/portfolio")
+async def proxy_portfolio(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.VIEWER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Any:
+    audit("portfolio.read", user, request=request)
+    return await _proxy_portfolio("GET", "/v1/portfolio", settings=settings)
+
+
+@app.get("/v1/portfolio/history")
+async def proxy_portfolio_history(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.VIEWER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+    limit: int = 50,
+) -> Any:
+    audit("portfolio.history", user, request=request)
+    return await _proxy_portfolio(
+        "GET", "/v1/portfolio/history", settings=settings, params={"limit": limit}
+    )
+
+
+@app.get("/v1/portfolio/recommendations")
+async def proxy_portfolio_recommendations(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.VIEWER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+    limit: int = 8,
+) -> Any:
+    audit("portfolio.recommendations", user, request=request)
+    return await _proxy_portfolio(
+        "GET",
+        "/v1/portfolio/recommendations",
+        settings=settings,
+        params={"limit": limit},
+    )
+
+
+@app.post("/v1/portfolio/run")
+async def proxy_portfolio_run(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.TRADER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+    tickers: str | None = None,
+) -> Any:
+    audit("portfolio.run", user, {"tickers": tickers}, request)
+    params = {"tickers": tickers} if tickers else None
+    return await _proxy_portfolio("POST", "/v1/portfolio/run", settings=settings, params=params)

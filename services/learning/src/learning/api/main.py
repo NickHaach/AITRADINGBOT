@@ -199,21 +199,41 @@ class TrainGbmRequest(BaseModel):
     version: str = "v1"
     n_samples: int = Field(80, ge=20, le=5000)
     promote: bool = False
+    source: str = Field("synthetic", description="synthetic | outcomes")
 
 
 @app.post("/v1/models/gbm/train")
-async def train_gbm(body: TrainGbmRequest) -> dict:
-    """Train GBM on synthetic rows (paper), save artifact, register in model registry."""
-    from prediction.artifacts import save_gbm
-    from prediction.gbm_model import GradientBoostDirectionModel, synthesize_training_rows
+async def train_gbm(
+    body: TrainGbmRequest,
+    store: Annotated[DualWriteLearningStore, Depends(get_store)],
+) -> dict:
+    """Train GBM, save artifact, register in model registry.
+
+    source=synthetic uses generated rows; source=outcomes rebuilds from closed trades
+    that stored FEATURE_NAMES in notes.
+    """
     from learning.calibration import last_fit
+    from learning.training_rows import outcomes_to_training_rows
+    from prediction.artifacts import save_gbm
     from prediction.ensemble import TemperatureCalibrator
+    from prediction.gbm_model import GradientBoostDirectionModel, synthesize_training_rows
 
     fit = last_fit()
     model = GradientBoostDirectionModel(
         calibrator=TemperatureCalibrator(temperature=float(fit.get("temperature") or 1.1))
     )
-    metrics = model.fit(synthesize_training_rows(body.n_samples))
+    if body.source == "outcomes":
+        rows = outcomes_to_training_rows(store.list_outcomes(limit=5000))
+        if len(rows) < 10:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Need ≥10 outcomes with feature vectors (got {len(rows)})",
+            )
+        metrics = model.fit(rows)
+        metrics["source"] = "outcomes"
+    else:
+        metrics = model.fit(synthesize_training_rows(body.n_samples))
+        metrics["source"] = "synthetic"
     uri = save_gbm(model, name="gbm_direction_v1", version=body.version)
     registered = None
     if _registry is not None:

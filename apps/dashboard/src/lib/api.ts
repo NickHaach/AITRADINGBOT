@@ -2,6 +2,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const NEWS_URL = process.env.NEXT_PUBLIC_NEWS_URL ?? "http://localhost:8001";
 const MARKET_URL = process.env.NEXT_PUBLIC_MARKET_URL ?? "http://localhost:8002";
 const ANN_URL = process.env.NEXT_PUBLIC_ANN_URL ?? "http://localhost:8003";
+/** Direct portfolio health check; book/recs go through gateway when authenticated. */
 const PORTFOLIO_URL = process.env.NEXT_PUBLIC_PORTFOLIO_URL ?? "http://localhost:8008";
 
 export type NewsArticle = {
@@ -119,29 +120,46 @@ export type LivePortfolio = {
   source: "live" | "demo";
 };
 
+function mapPortfolio(data: Record<string, unknown>, source: "live" | "demo"): LivePortfolio {
+  return {
+    cash: Number(data.cash ?? 0),
+    equity: Number(data.equity ?? 0),
+    drawdown: Number(data.drawdown ?? 0),
+    totalPnl: data.totalPnl != null ? Number(data.totalPnl) : undefined,
+    asOf: (data.asOf as string | null) ?? null,
+    positions: Array.isArray(data.positions)
+      ? data.positions.map((p: Record<string, unknown>) => ({
+          ticker: String(p.ticker),
+          qty: Number(p.qty ?? 0),
+          avgCost: Number(p.avgCost ?? 0),
+          last: Number(p.last ?? 0),
+          pnl: Number(p.pnl ?? 0),
+          weight: Number(p.weight ?? 0),
+        }))
+      : [],
+    source,
+  };
+}
+
+/** Unauthenticated server fetch — demo fallback. Prefer fetchPortfolioAuthed after login. */
 export async function fetchPortfolio(): Promise<LivePortfolio> {
   try {
     const res = await fetch(`${PORTFOLIO_URL}/v1/portfolio`, { cache: "no-store" });
     if (!res.ok) return { ...demoPortfolio(), source: "demo" };
-    const data = await res.json();
-    return {
-      cash: Number(data.cash ?? 0),
-      equity: Number(data.equity ?? 0),
-      drawdown: Number(data.drawdown ?? 0),
-      totalPnl: data.totalPnl != null ? Number(data.totalPnl) : undefined,
-      asOf: data.asOf ?? null,
-      positions: Array.isArray(data.positions)
-        ? data.positions.map((p: Record<string, unknown>) => ({
-            ticker: String(p.ticker),
-            qty: Number(p.qty ?? 0),
-            avgCost: Number(p.avgCost ?? 0),
-            last: Number(p.last ?? 0),
-            pnl: Number(p.pnl ?? 0),
-            weight: Number(p.weight ?? 0),
-          }))
-        : [],
-      source: "live",
-    };
+    return mapPortfolio(await res.json(), "live");
+  } catch {
+    return { ...demoPortfolio(), source: "demo" };
+  }
+}
+
+export async function fetchPortfolioAuthed(token: string): Promise<LivePortfolio> {
+  try {
+    const res = await fetch(`${API_URL}/v1/portfolio`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { ...demoPortfolio(), source: "demo" };
+    return mapPortfolio(await res.json(), "live");
   } catch {
     return { ...demoPortfolio(), source: "demo" };
   }
@@ -153,6 +171,38 @@ export async function fetchRecommendations(): Promise<DemoRecommendation[]> {
     [],
   );
   return live.length > 0 ? live : demoRecommendations();
+}
+
+export async function fetchRecommendationsAuthed(token: string): Promise<DemoRecommendation[]> {
+  try {
+    const res = await fetch(`${API_URL}/v1/portfolio/recommendations`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function loginRequest(
+  email: string,
+  password: string,
+): Promise<{ access_token: string; refresh_token: string }> {
+  const body = new URLSearchParams();
+  body.set("username", email);
+  body.set("password", password);
+  const res = await fetch(`${API_URL}/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  if (!res.ok) {
+    throw new Error("Invalid credentials");
+  }
+  return res.json();
 }
 
 /** Demo portfolio used when live portfolio API is not yet exposed. */

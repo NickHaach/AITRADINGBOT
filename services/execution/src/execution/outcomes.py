@@ -33,6 +33,7 @@ class OpenLot:
     quantity: Decimal
     open_sim_day: int
     horizon_days: int
+    features: Dict = field(default_factory=dict)
     opened_at: datetime = field(default_factory=datetime.utcnow)
 
 
@@ -63,6 +64,7 @@ class OutcomeLedger:
         entry_price: Decimal,
         quantity: Decimal,
         horizon_days: int,
+        features: Optional[Dict] = None,
     ) -> OpenLot:
         lot = OpenLot(
             signal_id=signal_id,
@@ -78,6 +80,7 @@ class OutcomeLedger:
             quantity=quantity,
             open_sim_day=self.sim_day,
             horizon_days=max(1, horizon_days),
+            features=dict(features or {}),
         )
         self.open_lots.append(lot)
         return lot
@@ -145,6 +148,7 @@ class OutcomeLedger:
                         "exit_price": float(exit_px),
                         "entry_price": float(lot.entry_price),
                         "sim_day_closed": self.sim_day,
+                        "features": lot.features,
                     }
                 ),
             )

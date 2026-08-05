@@ -43,6 +43,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://trading:trading_dev_password@postgres:5432/ai_trading
       REDIS_URL: redis://redis:6379/0
+      PORTFOLIO_SERVICE_URL: http://portfolio:8008
     ports:
       - "8000:8000"
     depends_on:
@@ -50,6 +51,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      portfolio:
+        condition: service_started
 
   news_intelligence:
     build:

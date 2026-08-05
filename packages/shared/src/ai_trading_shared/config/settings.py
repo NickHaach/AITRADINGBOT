@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     api_port: int = 8000
     dashboard_url: str = "http://localhost:3000"
     cors_origins: str = "http://localhost:3000"
+    portfolio_service_url: str = "http://localhost:8008"
 
     database_url: str = (
         "postgresql+asyncpg://trading:trading_dev_password@localhost:5432/ai_trading"
