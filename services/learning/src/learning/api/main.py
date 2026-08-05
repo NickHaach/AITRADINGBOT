@@ -174,3 +174,22 @@ async def auto_promote(
     )
     promoted = await _registry.promote(model_name, version)
     return {"promoted": True, "model": promoted, "report": report.model_dump(mode="json")}
+
+
+@app.get("/v1/learning/calibration")
+async def get_calibration() -> dict:
+    from learning.calibration import last_fit
+
+    return last_fit()
+
+
+@app.post("/v1/learning/calibration/refresh")
+async def refresh_calibration(
+    store: Annotated[DualWriteLearningStore, Depends(get_store)],
+    min_samples: int = Query(30, ge=5, le=500),
+) -> dict:
+    from learning.calibration import refresh_calibrator
+    from prediction.ensemble import TemperatureCalibrator
+
+    outcomes = store.list_outcomes(limit=5000)
+    return refresh_calibrator(outcomes, calibrator=TemperatureCalibrator(), min_samples=min_samples)

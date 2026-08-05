@@ -109,3 +109,68 @@ def auto_promote_task(
     settings = get_settings()
     configure_logging(settings.log_level)
     return asyncio.run(_run())
+
+
+@celery_app.task(name="learning.workers.tasks.refresh_calibration_task")
+def refresh_calibration_task(window_days: int = 30, min_samples: int = 30) -> dict:
+    """Fit temperature calibrator from SQL outcomes (rolling window)."""
+
+    async def _run() -> dict:
+        from datetime import datetime, timedelta, timezone
+
+        from learning.calibration import refresh_calibrator
+        from prediction.ensemble import TemperatureCalibrator
+
+        settings = get_settings()
+        engine = LearningEngine()
+        if settings.enable_sql_persistence and settings.database_url.startswith("postgresql"):
+            sql_engine = create_engine(settings.database_url)
+            factory = create_session_factory(sql_engine)
+            outcomes_repo = OutcomePersistenceRepository(factory)
+            rows = await outcomes_repo.list_for_eval()
+            hydrated = []
+            for row in rows:
+                try:
+                    action = (
+                        SignalAction(row["action"]) if isinstance(row["action"], str) else row["action"]
+                    )
+                except Exception:
+                    action = SignalAction.HOLD
+                hydrated.append(
+                    TradeOutcome(
+                        id=row["id"],
+                        signal_id=row["signal_id"],
+                        trade_id=row.get("trade_id"),
+                        ticker=row["ticker"],
+                        action=action,
+                        predicted_direction=row["predicted_direction"],
+                        predicted_return=row["predicted_return"],
+                        probability_success=row["probability_success"],
+                        confidence=row["confidence"],
+                        model_versions=row.get("model_versions") or [],
+                        actual_return=row["actual_return"],
+                        holding_days=row["holding_days"],
+                        correct_direction=row["correct_direction"],
+                        pnl=row["pnl"],
+                        closed_at=row["closed_at"],
+                        notes=row.get("notes") or "",
+                    )
+                )
+            engine.replace_outcomes(hydrated)
+            await sql_engine.dispose()
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+        window = [
+            o
+            for o in engine.list_outcomes(limit=5000)
+            if (o.closed_at.replace(tzinfo=timezone.utc) if o.closed_at.tzinfo is None else o.closed_at)
+            >= cutoff
+        ]
+        cal = TemperatureCalibrator()
+        result = refresh_calibrator(window, calibrator=cal, min_samples=min_samples)
+        logger.info("calibration_task_done", **{k: result.get(k) for k in ("temperature", "samples", "updated")})
+        return result
+
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    return asyncio.run(_run())

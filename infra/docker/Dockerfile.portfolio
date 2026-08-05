@@ -11,6 +11,7 @@ COPY services/market_data ./services/market_data
 COPY services/prediction ./services/prediction
 COPY services/risk ./services/risk
 COPY services/sentiment ./services/sentiment
+COPY services/learning ./services/learning
 
 RUN uv pip install --system \
   -e packages/shared \
@@ -20,8 +21,9 @@ RUN uv pip install --system \
   -e services/prediction \
   -e services/risk \
   -e services/sentiment \
+  -e services/learning \
   "fastapi[standard]" uvicorn numpy scikit-learn
 
-ENV PYTHONPATH=/app/packages/shared/src:/app/services/portfolio/src:/app/services/execution/src:/app/services/market_data/src:/app/services/prediction/src:/app/services/risk/src:/app/services/sentiment/src
+ENV PYTHONPATH=/app/packages/shared/src:/app/services/portfolio/src:/app/services/execution/src:/app/services/market_data/src:/app/services/prediction/src:/app/services/risk/src:/app/services/sentiment/src:/app/services/learning/src
 EXPOSE 8008
 CMD ["uvicorn", "portfolio.api.main:app", "--host", "0.0.0.0", "--port", "8008"]

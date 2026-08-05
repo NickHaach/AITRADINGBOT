@@ -32,6 +32,44 @@ class TemperatureCalibrator:
         logit = log(p / (1 - p)) / self.temperature
         return _clamp(1.0 / (1.0 + exp(-logit)))
 
+    def fit(
+        self,
+        probabilities: Sequence[float],
+        labels: Sequence[int],
+        *,
+        grid: Optional[Sequence[float]] = None,
+    ) -> Dict[str, float]:
+        """Grid-search temperature minimizing Brier score on raw probabilities."""
+        if len(probabilities) != len(labels):
+            raise ValueError("probabilities and labels length mismatch")
+        if len(probabilities) < 5:
+            return {
+                "temperature": self.temperature,
+                "brier": -1.0,
+                "samples": float(len(probabilities)),
+                "updated": 0.0,
+            }
+        candidates = list(grid or (0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0))
+        best_t = self.temperature
+        best_brier = float("inf")
+        for t in candidates:
+            if t <= 0:
+                continue
+            probe = TemperatureCalibrator(temperature=t)
+            brier = mean(
+                (probe.calibrate(p) - float(y)) ** 2 for p, y in zip(probabilities, labels)
+            )
+            if brier < best_brier:
+                best_brier = brier
+                best_t = t
+        self.temperature = best_t
+        return {
+            "temperature": best_t,
+            "brier": round(best_brier, 6),
+            "samples": float(len(probabilities)),
+            "updated": 1.0,
+        }
+
 
 class HeuristicEnsemble:
     """Baseline ensemble combining trend / mean-reversion / breakout heuristics."""

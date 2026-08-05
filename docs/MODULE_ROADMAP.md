@@ -19,13 +19,15 @@
 | **Model registry register / promote / auto-promote** | Done |
 | **Prediction dual-write in trading pipeline** | Done |
 | **Portfolio desk API** (`:8008`) + live dashboard book | Done |
+| **Paper lot close → Learning outcomes** (sim horizon) | Done |
+| **Online temperature calibration refresh** (API + Celery) | Done |
 
 ## Next increments
 
 1. Auth-gated gateway proxy for portfolio (JWT) once dashboard login lands
 2. TradingView lightweight widgets (optional upgrade over Recharts tape)
 3. Persist GBM artifacts to object storage and load production models at runtime
-4. Online calibration refresh from rolling Brier windows
-5. Wire closed-trade outcomes from execution fills into Learning Engine automatically
+4. Share calibration temperature across services via Redis/registry
+5. Dashboard login + authenticated portfolio fetches
 
 Each increment must ship with unit tests, module README, and mock adapters.

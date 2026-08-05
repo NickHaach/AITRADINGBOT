@@ -1,7 +1,8 @@
 """Trading pipeline: signal → risk → execution → portfolio.
 
 Orchestrates market features + sentiment + announcements into a trade decision
-loop with hard risk gating and paper execution.
+loop with hard risk gating and paper execution. Closes matured paper lots into
+Learning Engine outcomes and refreshes probability temperature when possible.
 """
 
 from __future__ import annotations
@@ -12,12 +13,15 @@ from typing import Dict, List, Optional, Protocol
 from ai_trading_shared.domain.entities import Prediction, Signal
 from ai_trading_shared.domain.enums import AssetClass, SignalAction
 from ai_trading_shared.utils.logging import get_logger
+from execution.outcomes import OutcomeLedger
 from execution.service import ExecutionService, PaperBroker
+from learning.calibration import last_fit, refresh_calibrator
+from learning.infrastructure.dual_write import DualWriteLearningStore
 from market_data.application.service import MarketDataService
 from market_data.infrastructure.adapters.mock_provider import MockMarketDataProvider
 from market_data.infrastructure.repositories.memory import InMemoryMarketRepository
 from portfolio.manager import PortfolioManager
-from prediction.ensemble import HeuristicEnsemble
+from prediction.ensemble import HeuristicEnsemble, TemperatureCalibrator
 from prediction.infrastructure.dual_write import DualWritePredictionStore
 from risk.engine import ProposedTrade, RiskConfig, RiskEngine
 from sentiment.engine import SentimentEngine
@@ -39,22 +43,33 @@ class TradingPipeline:
         risk_config: Optional[RiskConfig] = None,
         prediction_store: Optional[DualWritePredictionStore] = None,
         portfolio_writer: Optional[PortfolioSnapshotWriter] = None,
+        learning_store: Optional[DualWriteLearningStore] = None,
+        paper_days_per_cycle: int = 1,
+        calibrator: Optional[TemperatureCalibrator] = None,
     ) -> None:
+        fit = last_fit()
+        self.calibrator = calibrator or TemperatureCalibrator(
+            temperature=float(fit.get("temperature") or 1.2)
+        )
         self.market = MarketDataService(
             provider=MockMarketDataProvider(),
             repository=InMemoryMarketRepository(),
         )
         self.sentiment = SentimentEngine()
-        self.predictor = HeuristicEnsemble()
+        self.predictor = HeuristicEnsemble(calibrator=self.calibrator)
         self.risk = RiskEngine(risk_config or RiskConfig())
         self.broker = PaperBroker()
         self.execution = ExecutionService(self.broker, live_enabled=False)
         self.portfolio = PortfolioManager(starting_cash)
         self.prediction_store = prediction_store or DualWritePredictionStore()
         self.portfolio_writer = portfolio_writer
+        self.learning_store = learning_store or DualWriteLearningStore()
+        self.outcome_ledger = OutcomeLedger(learning=self.learning_store)
+        self.paper_days_per_cycle = max(1, paper_days_per_cycle)
         self.signals: List[Signal] = []
         self.rejected: List[Dict] = []
         self.fills: List[Dict] = []
+        self.closed_outcomes: List[Dict] = []
 
     async def run_once(
         self,
@@ -67,6 +82,7 @@ class TradingPipeline:
         news_by_ticker = news_by_ticker or {}
         announcement_impact = announcement_impact or {}
 
+        self.outcome_ledger.advance_clock(self.paper_days_per_cycle)
         await self.market.refresh_universe(tickers)
         snap = self.portfolio.mark_to_market({})
         approved = 0
@@ -146,6 +162,12 @@ class TradingPipeline:
             if order is None:
                 rejected += 1
                 continue
+            # Only open BUY lots for paper learning — SELL without inventory crashes portfolio
+            if action != SignalAction.BUY:
+                rejected += 1
+                self.rejected.append({"ticker": ticker, "reasons": ["paper_learning_buys_only"]})
+                continue
+
             filled = await self.execution.execute(order, proposal.reference_price)
             trade = self.broker.trades[-1]
             self.portfolio.apply_trade(trade)
@@ -159,6 +181,21 @@ class TradingPipeline:
                     "signal_id": str(signal.id),
                 }
             )
+            direction_raw = float((prediction.features or {}).get("direction_raw", prediction.direction_prob_up))
+            self.outcome_ledger.register_fill(
+                signal_id=signal.id,
+                trade_id=trade.id,
+                ticker=ticker,
+                action=action,
+                predicted_return=prediction.expected_return,
+                direction_prob_up=float(prediction.direction_prob_up),
+                direction_raw=direction_raw,
+                confidence=float(signal.confidence),
+                model_versions=signal.model_versions,
+                entry_price=trade.price,
+                quantity=trade.quantity,
+                horizon_days=signal.time_horizon_days,
+            )
             logger.info("trade_filled", ticker=ticker, side=filled.side.value)
 
         final_prices = {}
@@ -166,6 +203,23 @@ class TradingPipeline:
             f = await self.market.get_features(t)
             if f:
                 final_prices[t] = Decimal(str(round(f.last_price, 4)))
+
+        closed = await self.outcome_ledger.close_matured(
+            final_prices,
+            apply_closing_trade=self.portfolio.apply_trade,
+        )
+        for outcome in closed:
+            self.closed_outcomes.append(outcome.model_dump(mode="json"))
+
+        # Refresh calibrator from in-memory learning store when enough closes exist
+        calib = refresh_calibrator(
+            self.learning_store.list_outcomes(limit=500),
+            calibrator=self.calibrator,
+            min_samples=30,
+        )
+        if calib.get("updated"):
+            self.predictor.calibrator.temperature = float(calib["temperature"])
+
         final = self.portfolio.mark_to_market(final_prices)
         await self._persist_portfolio(final)
         return {
@@ -177,6 +231,9 @@ class TradingPipeline:
             "positions": len(final.positions),
             "fills": self.fills,
             "rejected": self.rejected,
+            "closed_outcomes": len(closed),
+            "open_lots": len(self.outcome_ledger.open_lots),
+            "calibration": calib,
         }
 
     async def _persist_prediction(self, prediction: Prediction) -> None:
@@ -232,6 +289,8 @@ class TradingPipeline:
             "totalPnl": float(snap.total_pnl),
             "positions": positions,
             "asOf": snap.as_of.isoformat() if snap.as_of else None,
+            "openLots": len(self.outcome_ledger.open_lots),
+            "calibrationTemperature": self.calibrator.temperature,
         }
 
     def recommendation_payloads(self, limit: int = 8) -> List[Dict]:

@@ -23,5 +23,10 @@ celery_app.conf.update(
             "schedule": 600.0,
             "kwargs": {"window_days": 7, "model_name": "all"},
         },
+        "refresh-calibration-every-15-minutes": {
+            "task": "learning.workers.tasks.refresh_calibration_task",
+            "schedule": 900.0,
+            "kwargs": {"window_days": 30, "min_samples": 30},
+        },
     },
 )

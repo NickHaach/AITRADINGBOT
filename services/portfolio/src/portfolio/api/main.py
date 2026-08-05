@@ -10,11 +10,13 @@ from fastapi import Depends, FastAPI, Query
 from ai_trading_shared.config import Settings, get_settings
 from ai_trading_shared.infrastructure.database import create_engine, create_session_factory
 from ai_trading_shared.infrastructure.repositories.persistence import (
+    OutcomePersistenceRepository,
     PortfolioPersistenceRepository,
     PredictionPersistenceRepository,
 )
 from ai_trading_shared.utils.logging import configure_logging, get_logger
 from execution.pipeline import TradingPipeline
+from learning.infrastructure.dual_write import DualWriteLearningStore
 from prediction.infrastructure.dual_write import DualWritePredictionStore
 
 logger = get_logger(__name__)
@@ -24,18 +26,22 @@ _pipeline: Optional[TradingPipeline] = None
 def build_pipeline(settings: Settings) -> TradingPipeline:
     pred_sql = None
     port_sql = None
+    outcome_sql = None
     if settings.enable_sql_persistence and settings.database_url.startswith("postgresql"):
         try:
             engine = create_engine(settings.database_url)
             factory = create_session_factory(engine)
             pred_sql = PredictionPersistenceRepository(factory)
             port_sql = PortfolioPersistenceRepository(factory)
+            outcome_sql = OutcomePersistenceRepository(factory)
             logger.info("portfolio_sql_persistence_enabled")
         except Exception:
             logger.exception("portfolio_sql_persistence_unavailable")
     return TradingPipeline(
         prediction_store=DualWritePredictionStore(sql=pred_sql),
         portfolio_writer=port_sql,
+        learning_store=DualWriteLearningStore(sql=outcome_sql),
+        paper_days_per_cycle=1,
     )
 
 

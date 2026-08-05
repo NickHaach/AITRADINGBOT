@@ -23,3 +23,7 @@ celery -A learning.workers.celery_app.celery_app worker --beat --loglevel=INFO
 | POST | `/v1/models/auto-promote` | Promote when sample≥30, dir_acc≥0.55, Brier≤0.25 |
 
 Promotion is gated — live trading still requires separate execution flags.
+
+Paper fills open lots that close after `horizon_days` simulated cycles and
+dual-write into Learning. Calibration temperature is refreshed from outcomes
+(`POST /v1/learning/calibration/refresh`, Celery every 15m).
