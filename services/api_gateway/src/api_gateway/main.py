@@ -7,8 +7,9 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -29,7 +30,9 @@ from ai_trading_shared.security import (
 from ai_trading_shared.utils.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/login")
+ACCESS_COOKIE = "aether_access"
+REFRESH_COOKIE = "aether_refresh"
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/login", auto_error=False)
 limiter = Limiter(key_func=get_remote_address)
 
 
@@ -134,10 +137,70 @@ app.add_middleware(
 )
 
 
+def _cookie_kwargs(settings: Settings, *, max_age: int) -> dict:
+    return {
+        "httponly": True,
+        "samesite": "lax",
+        "secure": settings.is_production,
+        "max_age": max_age,
+        "path": "/",
+    }
+
+
+def _set_auth_cookies(
+    response: Response,
+    *,
+    access: str,
+    refresh: str,
+    settings: Settings,
+) -> None:
+    response.set_cookie(
+        ACCESS_COOKIE,
+        access,
+        **_cookie_kwargs(settings, max_age=settings.jwt_access_token_expire_minutes * 60),
+    )
+    response.set_cookie(
+        REFRESH_COOKIE,
+        refresh,
+        **_cookie_kwargs(settings, max_age=settings.jwt_refresh_token_expire_days * 86400),
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie(ACCESS_COOKIE, path="/")
+    response.delete_cookie(REFRESH_COOKIE, path="/")
+
+
+def _issue_tokens(user: dict, settings: Settings) -> tuple[str, str]:
+    secret = settings.secret_key.get_secret_value()
+    access = create_access_token(
+        subject=str(user["id"]),
+        role=user["role"],
+        secret_key=secret,
+        algorithm=settings.jwt_algorithm,
+        expires_minutes=settings.jwt_access_token_expire_minutes,
+    )
+    refresh = create_refresh_token(
+        subject=str(user["id"]),
+        secret_key=secret,
+        algorithm=settings.jwt_algorithm,
+        expires_days=settings.jwt_refresh_token_expire_days,
+    )
+    return access, refresh
+
+
 def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
+    request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
+    bearer: Annotated[str | None, Depends(oauth2_scheme)] = None,
 ) -> dict:
+    token = bearer or request.cookies.get(ACCESS_COOKIE)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         raw = decode_token(token, settings.secret_key.get_secret_value(), settings.jwt_algorithm)
         if raw.get("type") != "access":
@@ -207,22 +270,69 @@ async def login(
     if user is None:
         audit("auth.login_failed", None, {"email": form.username}, request)
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    secret = settings.secret_key.get_secret_value()
-    access = create_access_token(
-        subject=str(user["id"]),
-        role=user["role"],
-        secret_key=secret,
-        algorithm=settings.jwt_algorithm,
-        expires_minutes=settings.jwt_access_token_expire_minutes,
-    )
-    refresh = create_refresh_token(
-        subject=str(user["id"]),
-        secret_key=secret,
-        algorithm=settings.jwt_algorithm,
-        expires_days=settings.jwt_refresh_token_expire_days,
-    )
+    access, refresh = _issue_tokens(user, settings)
     audit("auth.login", user, request=request)
     return TokenResponse(access_token=access, refresh_token=refresh)
+
+
+@app.post("/v1/auth/session/login", response_model=UserPublic)
+@limiter.limit("20/minute")
+async def session_login(
+    request: Request,
+    form: Annotated[OAuth2PasswordRequestForm, Depends()],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> JSONResponse:
+    """Browser login — sets HttpOnly cookies (preferred for the dashboard)."""
+    user = user_store.authenticate(form.username, form.password)
+    if user is None:
+        audit("auth.session_login_failed", None, {"email": form.username}, request)
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    access, refresh = _issue_tokens(user, settings)
+    audit("auth.session_login", user, request=request)
+    body = UserPublic(
+        id=user["id"], email=user["email"], full_name=user["full_name"], role=user["role"]
+    )
+    response = JSONResponse(content=body.model_dump(mode="json"))
+    _set_auth_cookies(response, access=access, refresh=refresh, settings=settings)
+    return response
+
+
+@app.post("/v1/auth/session/logout")
+async def session_logout(request: Request) -> JSONResponse:
+    audit("auth.session_logout", None, request=request)
+    response = JSONResponse(content={"ok": True})
+    _clear_auth_cookies(response)
+    return response
+
+
+@app.post("/v1/auth/session/refresh", response_model=UserPublic)
+async def session_refresh(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> JSONResponse:
+    refresh = request.cookies.get(REFRESH_COOKIE)
+    if not refresh:
+        raise HTTPException(status_code=401, detail="Missing refresh cookie")
+    try:
+        raw = decode_token(
+            refresh,
+            settings.secret_key.get_secret_value(),
+            settings.jwt_algorithm,
+        )
+        if raw.get("type") != "refresh":
+            raise ValueError("Not a refresh token")
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    user = user_store.get_by_id(UUID(str(raw["sub"])))
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    access, new_refresh = _issue_tokens(user, settings)
+    body = UserPublic(
+        id=user["id"], email=user["email"], full_name=user["full_name"], role=user["role"]
+    )
+    response = JSONResponse(content=body.model_dump(mode="json"))
+    _set_auth_cookies(response, access=access, refresh=new_refresh, settings=settings)
+    return response
 
 
 @app.post("/v1/auth/refresh", response_model=TokenResponse)
@@ -243,20 +353,7 @@ async def refresh_token(
     user = user_store.get_by_id(UUID(str(raw["sub"])))
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
-    secret = settings.secret_key.get_secret_value()
-    access = create_access_token(
-        subject=str(user["id"]),
-        role=user["role"],
-        secret_key=secret,
-        algorithm=settings.jwt_algorithm,
-        expires_minutes=settings.jwt_access_token_expire_minutes,
-    )
-    refresh = create_refresh_token(
-        subject=str(user["id"]),
-        secret_key=secret,
-        algorithm=settings.jwt_algorithm,
-        expires_days=settings.jwt_refresh_token_expire_days,
-    )
+    access, refresh = _issue_tokens(user, settings)
     return TokenResponse(access_token=access, refresh_token=refresh)
 
 

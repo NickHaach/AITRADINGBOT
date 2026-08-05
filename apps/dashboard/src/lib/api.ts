@@ -152,12 +152,9 @@ export async function fetchPortfolio(): Promise<LivePortfolio> {
   }
 }
 
-export async function fetchPortfolioAuthed(token: string): Promise<LivePortfolio> {
+export async function fetchPortfolioAuthed(_token?: string | null): Promise<LivePortfolio> {
   try {
-    const res = await fetch(`${API_URL}/v1/portfolio`, {
-      cache: "no-store",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await authFetch("/v1/portfolio");
     if (!res.ok) return { ...demoPortfolio(), source: "demo" };
     return mapPortfolio(await res.json(), "live");
   } catch {
@@ -165,20 +162,9 @@ export async function fetchPortfolioAuthed(token: string): Promise<LivePortfolio
   }
 }
 
-export async function fetchRecommendations(): Promise<DemoRecommendation[]> {
-  const live = await safeJson<DemoRecommendation[]>(
-    `${PORTFOLIO_URL}/v1/portfolio/recommendations`,
-    [],
-  );
-  return live.length > 0 ? live : demoRecommendations();
-}
-
-export async function fetchRecommendationsAuthed(token: string): Promise<DemoRecommendation[]> {
+export async function fetchRecommendationsAuthed(_token?: string | null): Promise<DemoRecommendation[]> {
   try {
-    const res = await fetch(`${API_URL}/v1/portfolio/recommendations`, {
-      cache: "no-store",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await authFetch("/v1/portfolio/recommendations");
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data) ? data : [];
@@ -187,6 +173,73 @@ export async function fetchRecommendationsAuthed(token: string): Promise<DemoRec
   }
 }
 
+export type CycleResult = {
+  approved_trades?: number;
+  rejected_trades?: number;
+  closed_outcomes?: number;
+  open_lots?: number;
+  equity?: number;
+  cash?: number;
+  signals?: number;
+};
+
+export async function runPortfolioCycle(tickers?: string): Promise<CycleResult> {
+  const qs = tickers ? `?tickers=${encodeURIComponent(tickers)}` : "";
+  const res = await authFetch(`/v1/portfolio/run${qs}`, { method: "POST" });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || "Cycle failed");
+  }
+  return res.json();
+}
+
+export async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${API_URL}${path}`, {
+    ...init,
+    credentials: "include",
+    cache: "no-store",
+    headers: init.headers,
+  });
+}
+
+export async function sessionLogin(email: string, password: string): Promise<{
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+}> {
+  const body = new URLSearchParams();
+  body.set("username", email);
+  body.set("password", password);
+  const res = await fetch(`${API_URL}/v1/auth/session/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Invalid credentials");
+  return res.json();
+}
+
+export async function sessionLogout(): Promise<void> {
+  await fetch(`${API_URL}/v1/auth/session/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
+export async function fetchMe(): Promise<{
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+} | null> {
+  const res = await authFetch("/v1/me");
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/** @deprecated Prefer sessionLogin — kept for API clients */
 export async function loginRequest(
   email: string,
   password: string,

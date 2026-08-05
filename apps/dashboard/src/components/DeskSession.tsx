@@ -2,23 +2,24 @@
 
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import {
+  canRunCycle,
   clearAuth,
-  getAccessToken,
-  getStoredUser,
-  storeAuth,
+  storeUser,
   type AuthUser,
 } from "@/lib/auth";
 import {
   demoPortfolio,
   demoRecommendations,
+  fetchMe,
   fetchPortfolioAuthed,
   fetchRecommendationsAuthed,
-  loginRequest,
+  runPortfolioCycle,
+  sessionLogin,
+  sessionLogout,
+  type CycleResult,
   type DemoRecommendation,
   type LivePortfolio,
 } from "@/lib/api";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export function DeskSession({
   children,
@@ -35,6 +36,8 @@ export function DeskSession({
   const [password, setPassword] = useState("ChangeMeAdmin123!");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [lastCycle, setLastCycle] = useState<CycleResult | null>(null);
   const [portfolio, setPortfolio] = useState<LivePortfolio>({
     ...demoPortfolio(),
     source: "demo",
@@ -42,20 +45,30 @@ export function DeskSession({
   const [recs, setRecs] = useState<DemoRecommendation[]>(demoRecommendations());
 
   useEffect(() => {
-    const token = getAccessToken();
-    const stored = getStoredUser();
-    if (!token || !stored) {
+    void (async () => {
+      try {
+        const me = await fetchMe();
+        if (me) {
+          const authUser: AuthUser = me;
+          storeUser(authUser);
+          setUser(authUser);
+          await loadBook();
+          setLoading(false);
+          return;
+        }
+      } catch {
+        /* fall through */
+      }
+      clearAuth();
+      setUser(null);
       setLoading(false);
-      return;
-    }
-    setUser(stored);
-    void loadBook(token).finally(() => setLoading(false));
+    })();
   }, []);
 
-  async function loadBook(token: string) {
+  async function loadBook() {
     const [book, recommendations] = await Promise.all([
-      fetchPortfolioAuthed(token),
-      fetchRecommendationsAuthed(token),
+      fetchPortfolioAuthed(),
+      fetchRecommendationsAuthed(),
     ]);
     setPortfolio(book);
     setRecs(recommendations.length ? recommendations : demoRecommendations());
@@ -66,16 +79,10 @@ export function DeskSession({
     setError(null);
     setLoading(true);
     try {
-      const tokens = await loginRequest(email, password);
-      const meRes = await fetch(`${API_URL}/v1/me`, {
-        headers: { Authorization: `Bearer ${tokens.access_token}` },
-        cache: "no-store",
-      });
-      if (!meRes.ok) throw new Error("Could not load profile");
-      const me = (await meRes.json()) as AuthUser;
-      storeAuth(tokens.access_token, tokens.refresh_token, me);
+      const me = await sessionLogin(email, password);
+      storeUser(me);
       setUser(me);
-      await loadBook(tokens.access_token);
+      await loadBook();
     } catch (err) {
       clearAuth();
       setUser(null);
@@ -85,12 +92,30 @@ export function DeskSession({
     }
   }
 
-  function onSignOut() {
+  async function onSignOut() {
+    await sessionLogout();
     clearAuth();
     setUser(null);
+    setLastCycle(null);
     setPortfolio({ ...demoPortfolio(), source: "demo" });
     setRecs(demoRecommendations());
   }
+
+  async function onRunCycle() {
+    setError(null);
+    setRunning(true);
+    try {
+      const result = await runPortfolioCycle();
+      setLastCycle(result);
+      await loadBook();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cycle failed");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const showRun = canRunCycle(user?.role);
 
   return (
     <div className="fade-up fade-up-delay-1">
@@ -138,13 +163,30 @@ export function DeskSession({
             </form>
           )}
           {user ? (
-            <button type="button" onClick={onSignOut} className="desk-btn desk-btn-ghost self-start md:self-center">
-              Sign out
-            </button>
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
+              {showRun ? (
+                <button
+                  type="button"
+                  onClick={onRunCycle}
+                  className="desk-btn desk-btn-primary"
+                  disabled={running || loading}
+                >
+                  {running ? "Running…" : "Run cycle"}
+                </button>
+              ) : null}
+              <button type="button" onClick={onSignOut} className="desk-btn desk-btn-ghost">
+                Sign out
+              </button>
+            </div>
           ) : null}
         </div>
-        {error ? (
-          <p className="mt-3 font-mono text-[11px] text-danger">{error}</p>
+        {error ? <p className="mt-3 font-mono text-[11px] text-danger">{error}</p> : null}
+        {lastCycle ? (
+          <p className="mt-3 font-mono text-[11px] text-mist/55">
+            Last cycle · approved {lastCycle.approved_trades ?? 0} · rejected{" "}
+            {lastCycle.rejected_trades ?? 0} · closed {lastCycle.closed_outcomes ?? 0} · open lots{" "}
+            {lastCycle.open_lots ?? 0}
+          </p>
         ) : null}
         {!user && !loading ? (
           <p className="mt-3 text-sm text-mist/55">
@@ -155,7 +197,7 @@ export function DeskSession({
       </div>
 
       <div
-        className={`transition-opacity duration-300 ${loading ? "opacity-50" : "opacity-100"}`}
+        className={`transition-opacity duration-300 ${loading || running ? "opacity-55" : "opacity-100"}`}
         style={{ transitionTimingFunction: "var(--ease-out)" }}
       >
         {children({ user, portfolio, recs, loading })}

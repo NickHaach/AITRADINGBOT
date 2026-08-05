@@ -26,13 +26,15 @@
 | **JWT portfolio proxy** on API gateway | Done |
 | **Aether Desk login** + authed book/recs | Done |
 | **GBM train from real outcome feature rows** | Done |
+| **HttpOnly session cookies** + cookie/Bearer dual auth | Done |
+| **Paper Run cycle** button (trader/admin) | Done |
 
 ## Next increments
 
 1. TradingView lightweight widgets (optional upgrade over Recharts tape)
 2. Object storage (S3) behind the same artifact URI interface
 3. Lock news/market/announcements behind JWT once desk auth is default
-4. Refresh-token rotation + HttpOnly cookies instead of localStorage
-5. End-to-end paper session UI (run cycle button for traders)
+4. Session refresh on 401 (silent cookie rotation)
+5. Multi-ticker cycle picker UI
 
 Each increment must ship with unit tests, module README, and mock adapters.

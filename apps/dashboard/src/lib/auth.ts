@@ -1,8 +1,9 @@
 "use client";
 
+const USER_KEY = "aether_user";
+/** Legacy keys — cleared on logout; tokens now live in HttpOnly cookies. */
 const ACCESS_KEY = "aether_access";
 const REFRESH_KEY = "aether_refresh";
-const USER_KEY = "aether_user";
 
 export type AuthUser = {
   id: string;
@@ -10,11 +11,6 @@ export type AuthUser = {
   full_name: string;
   role: string;
 };
-
-export function getAccessToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(ACCESS_KEY);
-}
 
 export function getStoredUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
@@ -28,13 +24,15 @@ export function getStoredUser(): AuthUser | null {
 }
 
 export function clearAuth(): void {
+  localStorage.removeItem(USER_KEY);
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
-  localStorage.removeItem(USER_KEY);
 }
 
-export function storeAuth(access: string, refresh: string, user: AuthUser): void {
-  localStorage.setItem(ACCESS_KEY, access);
-  localStorage.setItem(REFRESH_KEY, refresh);
+export function storeUser(user: AuthUser): void {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function canRunCycle(role: string | undefined | null): boolean {
+  return role === "trader" || role === "admin";
 }
