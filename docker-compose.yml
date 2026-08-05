@@ -106,6 +106,41 @@ services:
     ports:
       - "8003:8003"
 
+  learning:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.learning
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://trading:trading_dev_password@postgres:5432/ai_trading
+      ENABLE_SQL_PERSISTENCE: "true"
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    ports:
+      - "8007:8007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  learning_worker:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.learning
+    command: celery -A learning.workers.celery_app.celery_app worker --beat --loglevel=INFO
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://trading:trading_dev_password@postgres:5432/ai_trading
+      ENABLE_SQL_PERSISTENCE: "true"
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   prometheus:
     image: prom/prometheus:v2.54.1
     volumes:

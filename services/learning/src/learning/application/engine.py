@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from statistics import mean
 from typing import Dict, List, Optional, Sequence
 from uuid import UUID
@@ -13,11 +14,18 @@ from learning.domain.models import ModelAccuracyReport, TradeOutcome
 logger = get_logger(__name__)
 
 
+def _as_aware(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 class LearningEngine:
     """Compares predictions to realized outcomes and emits improvement hints."""
 
     def __init__(self) -> None:
         self._outcomes: List[TradeOutcome] = []
+        self.last_report: Optional[ModelAccuracyReport] = None
 
     def record(self, outcome: TradeOutcome) -> TradeOutcome:
         self._outcomes.append(outcome)
@@ -28,6 +36,10 @@ class LearningEngine:
             actual_return=outcome.actual_return,
         )
         return outcome
+
+    def replace_outcomes(self, outcomes: Sequence[TradeOutcome]) -> None:
+        """Replace in-memory store (used when hydrating from SQL in workers)."""
+        self._outcomes = list(outcomes)
 
     def record_closed_trade(
         self,
@@ -74,12 +86,20 @@ class LearningEngine:
             items = [o for o in items if o.ticker == ticker.upper()]
         return list(reversed(items[-limit:]))
 
-    def evaluate(self, model_name: str = "all") -> ModelAccuracyReport:
+    def evaluate(
+        self,
+        model_name: str = "all",
+        *,
+        window_days: Optional[int] = None,
+    ) -> ModelAccuracyReport:
         outcomes = self._outcomes
+        if window_days is not None and window_days > 0:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+            outcomes = [o for o in outcomes if _as_aware(o.closed_at) >= cutoff]
         if model_name != "all":
             outcomes = [o for o in outcomes if model_name in o.model_versions]
         if not outcomes:
-            return ModelAccuracyReport(
+            report = ModelAccuracyReport(
                 model_name=model_name,
                 sample_size=0,
                 direction_accuracy=0.0,
@@ -89,6 +109,8 @@ class LearningEngine:
                 hit_rate_high_confidence=0.0,
                 suggestions=["Collect closed-trade outcomes before evaluating models."],
             )
+            self.last_report = report
+            return report
 
         direction_acc = mean(1.0 if o.correct_direction else 0.0 for o in outcomes)
         avg_pred = mean(o.predicted_return for o in outcomes)
@@ -109,7 +131,7 @@ class LearningEngine:
             by_ticker[t] = round(mean(1.0 if o.correct_direction else 0.0 for o in subset), 4)
 
         suggestions = self._suggestions(direction_acc, brier, hit_high, avg_pred, avg_act, len(outcomes))
-        return ModelAccuracyReport(
+        report = ModelAccuracyReport(
             model_name=model_name,
             sample_size=len(outcomes),
             direction_accuracy=round(direction_acc, 4),
@@ -120,7 +142,17 @@ class LearningEngine:
             suggestions=suggestions,
             breakdown=by_ticker,
         )
+        self.last_report = report
+        return report
 
+    @staticmethod
+    def meets_promotion_thresholds(report: ModelAccuracyReport) -> bool:
+        """Conservative gates before flipping is_production."""
+        return (
+            report.sample_size >= 30
+            and report.direction_accuracy >= 0.55
+            and report.brier_score <= 0.25
+        )
     @staticmethod
     def _suggestions(
         direction_acc: float,

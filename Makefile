@@ -64,3 +64,6 @@ run-market:
 
 run-announcements:
 	$(PYTHON) -m uvicorn company_announcements.api.main:app --reload --port 8003
+
+run-learning:
+	$(PYTHON) -m uvicorn learning.api.main:app --reload --port 8007

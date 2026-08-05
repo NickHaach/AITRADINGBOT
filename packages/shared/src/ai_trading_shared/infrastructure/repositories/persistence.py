@@ -214,3 +214,30 @@ class OutcomePersistenceRepository:
                 }
                 for r in rows
             ]
+
+    async def list_for_eval(self, limit: int = 5000) -> List[Dict[str, Any]]:
+        """Full outcome rows for LearningEngine hydration / Celery eval windows."""
+        async with self._factory() as session:
+            stmt = select(TradeOutcomeRow).order_by(TradeOutcomeRow.closed_at.desc()).limit(limit)
+            rows = (await session.scalars(stmt)).all()
+            return [
+                {
+                    "id": r.id,
+                    "signal_id": r.signal_id,
+                    "trade_id": r.trade_id,
+                    "ticker": r.ticker,
+                    "action": r.action,
+                    "predicted_direction": r.predicted_direction,
+                    "predicted_return": float(r.predicted_return),
+                    "probability_success": float(r.probability_success),
+                    "confidence": float(r.confidence),
+                    "model_versions": list(r.model_versions or []),
+                    "actual_return": float(r.actual_return),
+                    "holding_days": r.holding_days,
+                    "correct_direction": r.correct_direction,
+                    "pnl": float(r.pnl),
+                    "closed_at": r.closed_at,
+                    "notes": r.notes or "",
+                }
+                for r in rows
+            ]
