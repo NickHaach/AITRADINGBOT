@@ -24,6 +24,8 @@ celery -A learning.workers.celery_app.celery_app worker --beat --loglevel=INFO
 
 Promotion is gated — live trading still requires separate execution flags.
 
-Paper fills open lots that close after `horizon_days` simulated cycles and
-dual-write into Learning. Calibration temperature is refreshed from outcomes
-(`POST /v1/learning/calibration/refresh`, Celery every 15m).
+| POST | `/v1/models/gbm/train` | Train synthetic GBM, save joblib, register `artifact_uri` |
+
+Calibration temperature is shared via Redis key `learning:calibration:last_fit`
+(with in-memory fallback). GBM artifacts live under `MODEL_ARTIFACT_DIR`
+(Docker volume `model_artifacts`).

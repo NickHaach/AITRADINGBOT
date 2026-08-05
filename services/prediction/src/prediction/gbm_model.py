@@ -127,8 +127,30 @@ class GradientBoostDirectionModel:
             risk_score=risk,
             horizon_days=horizon_days,
             features={
-                name: value for name, value in zip(FEATURE_NAMES, features)
+                **{name: value for name, value in zip(FEATURE_NAMES, features)},
+                "direction_raw": raw,
             },
+        )
+
+    def predict(
+        self,
+        ticker: str,
+        returns_5d: float,
+        volatility_20d: float,
+        sentiment_score: float = 0.0,
+        announcement_impact: float = 0.0,
+        horizon_days: int = 5,
+    ) -> Prediction:
+        """Ensemble-compatible predict surface for TradingPipeline."""
+        return self.predict_row(
+            ticker=ticker,
+            returns_5d=returns_5d,
+            volatility_20d=volatility_20d,
+            sentiment_score=sentiment_score,
+            announcement_impact=announcement_impact,
+            liquidity_score=0.5,
+            trend_strength=float(returns_5d) * 5.0,
+            horizon_days=horizon_days,
         )
 
 

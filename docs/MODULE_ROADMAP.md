@@ -21,13 +21,15 @@
 | **Portfolio desk API** (`:8008`) + live dashboard book | Done |
 | **Paper lot close → Learning outcomes** (sim horizon) | Done |
 | **Online temperature calibration refresh** (API + Celery) | Done |
+| **Shared calibration via Redis** (memory fallback) | Done |
+| **GBM joblib artifacts + production load** | Done |
 
 ## Next increments
 
-1. Auth-gated gateway proxy for portfolio (JWT) once dashboard login lands
+1. Auth-gated gateway proxy for portfolio (JWT) + dashboard login
 2. TradingView lightweight widgets (optional upgrade over Recharts tape)
-3. Persist GBM artifacts to object storage and load production models at runtime
-4. Share calibration temperature across services via Redis/registry
-5. Dashboard login + authenticated portfolio fetches
+3. Object storage (S3) behind the same artifact URI interface
+4. Train GBM from real closed-trade feature rows (not synthetic)
+5. Wire portfolio recommendations to production GBM scores explicitly
 
 Each increment must ship with unit tests, module README, and mock adapters.

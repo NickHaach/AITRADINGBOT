@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     celery_broker_url: str = "redis://localhost:6379/1"
     celery_result_backend: str = "redis://localhost:6379/2"
+    # Shared filesystem for GBM joblib artifacts (mount in Docker)
+    model_artifact_dir: str = "artifacts"
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection_news: str = "news_embeddings"

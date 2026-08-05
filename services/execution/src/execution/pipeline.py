@@ -46,6 +46,7 @@ class TradingPipeline:
         learning_store: Optional[DualWriteLearningStore] = None,
         paper_days_per_cycle: int = 1,
         calibrator: Optional[TemperatureCalibrator] = None,
+        predictor=None,
     ) -> None:
         fit = last_fit()
         self.calibrator = calibrator or TemperatureCalibrator(
@@ -56,7 +57,13 @@ class TradingPipeline:
             repository=InMemoryMarketRepository(),
         )
         self.sentiment = SentimentEngine()
-        self.predictor = HeuristicEnsemble(calibrator=self.calibrator)
+        self.predictor = predictor or HeuristicEnsemble(calibrator=self.calibrator)
+        if hasattr(self.predictor, "calibrator") and calibrator is None:
+            # keep predictor calibrator aligned with shared last_fit temperature
+            try:
+                self.predictor.calibrator.temperature = self.calibrator.temperature
+            except Exception:
+                pass
         self.risk = RiskEngine(risk_config or RiskConfig())
         self.broker = PaperBroker()
         self.execution = ExecutionService(self.broker, live_enabled=False)

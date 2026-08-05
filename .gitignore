@@ -29,6 +29,7 @@ secrets/
 data/raw/
 data/processed/
 models/artifacts/
+artifacts/
 *.parquet
 *.h5
 *.onnx

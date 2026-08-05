@@ -193,3 +193,43 @@ async def refresh_calibration(
 
     outcomes = store.list_outcomes(limit=5000)
     return refresh_calibrator(outcomes, calibrator=TemperatureCalibrator(), min_samples=min_samples)
+
+
+class TrainGbmRequest(BaseModel):
+    version: str = "v1"
+    n_samples: int = Field(80, ge=20, le=5000)
+    promote: bool = False
+
+
+@app.post("/v1/models/gbm/train")
+async def train_gbm(body: TrainGbmRequest) -> dict:
+    """Train GBM on synthetic rows (paper), save artifact, register in model registry."""
+    from prediction.artifacts import save_gbm
+    from prediction.gbm_model import GradientBoostDirectionModel, synthesize_training_rows
+    from learning.calibration import last_fit
+    from prediction.ensemble import TemperatureCalibrator
+
+    fit = last_fit()
+    model = GradientBoostDirectionModel(
+        calibrator=TemperatureCalibrator(temperature=float(fit.get("temperature") or 1.1))
+    )
+    metrics = model.fit(synthesize_training_rows(body.n_samples))
+    uri = save_gbm(model, name="gbm_direction_v1", version=body.version)
+    registered = None
+    if _registry is not None:
+        registered = await _registry.register(
+            name="gbm_direction_v1",
+            version=body.version,
+            model_type="gbm",
+            metrics=metrics,
+            artifact_uri=uri,
+            is_production=body.promote,
+        )
+    elif body.promote:
+        raise HTTPException(status_code=503, detail="Promote requires ENABLE_SQL_PERSISTENCE")
+    return {
+        "trained": True,
+        "metrics": metrics,
+        "artifact_uri": uri,
+        "registered": registered,
+    }
