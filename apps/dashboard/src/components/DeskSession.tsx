@@ -28,7 +28,7 @@ export function DeskSession({
     portfolio: LivePortfolio;
     recs: DemoRecommendation[];
     loading: boolean;
-    }) => ReactNode;
+  }) => ReactNode;
 }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [email, setEmail] = useState("admin@local.dev");
@@ -93,63 +93,73 @@ export function DeskSession({
   }
 
   return (
-    <div>
-      <div className="mb-8 flex flex-col gap-4 border border-line bg-panel/40 px-5 py-4 md:flex-row md:items-end md:justify-between">
-        {user ? (
-          <div className="font-mono text-xs text-mist/80">
-            <p className="text-signal">SIGNED IN</p>
-            <p className="mt-1 text-white">
-              {user.email} · {user.role}
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={onSubmit} className="grid w-full gap-3 md:max-w-xl md:grid-cols-[1fr_1fr_auto]">
-            <label className="block font-mono text-[11px] uppercase tracking-wider text-mist/50">
-              Email
-              <input
-                className="mt-1 w-full border border-line bg-ink px-3 py-2 text-sm text-white outline-none focus:border-signal"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="username"
-              />
-            </label>
-            <label className="block font-mono text-[11px] uppercase tracking-wider text-mist/50">
-              Password
-              <input
-                type="password"
-                className="mt-1 w-full border border-line bg-ink px-3 py-2 text-sm text-white outline-none focus:border-signal"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-            </label>
-            <button
-              type="submit"
-              className="border border-signal px-4 py-2 font-mono text-xs uppercase tracking-wider text-signal hover:bg-signal/10 md:self-end"
-              disabled={loading}
+    <div className="fade-up fade-up-delay-1">
+      <div className="surface mb-10 px-5 py-4 md:px-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-signal" />
+              <div className="font-mono text-xs leading-relaxed">
+                <p className="tracking-[0.18em] text-signal">SESSION</p>
+                <p className="mt-0.5 text-white/90">
+                  {user.email}
+                  <span className="text-mist/40"> · </span>
+                  <span className="text-mist/70">{user.role}</span>
+                </p>
+              </div>
+            </div>
+          ) : (
+            <form
+              onSubmit={onSubmit}
+              className="grid w-full gap-3 md:max-w-2xl md:grid-cols-[1fr_1fr_auto] md:items-end"
             >
-              Sign in
+              <label className="block font-mono text-[10px] uppercase tracking-[0.16em] text-mist/45">
+                Email
+                <input
+                  className="desk-input mt-1.5"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
+                />
+              </label>
+              <label className="block font-mono text-[10px] uppercase tracking-[0.16em] text-mist/45">
+                Password
+                <input
+                  type="password"
+                  className="desk-input mt-1.5"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </label>
+              <button type="submit" className="desk-btn desk-btn-primary md:mb-px" disabled={loading}>
+                {loading ? "…" : "Sign in"}
+              </button>
+            </form>
+          )}
+          {user ? (
+            <button type="button" onClick={onSignOut} className="desk-btn desk-btn-ghost self-start md:self-center">
+              Sign out
             </button>
-          </form>
-        )}
-        {user ? (
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="border border-line px-4 py-2 font-mono text-xs uppercase tracking-wider text-mist/70 hover:text-white"
-          >
-            Sign out
-          </button>
+          ) : null}
+        </div>
+        {error ? (
+          <p className="mt-3 font-mono text-[11px] text-danger">{error}</p>
+        ) : null}
+        {!user && !loading ? (
+          <p className="mt-3 text-sm text-mist/55">
+            Sign in for the live paper book. Dev admin{" "}
+            <span className="font-mono text-signal/80">admin@local.dev</span>
+          </p>
         ) : null}
       </div>
-      {error ? <p className="mb-4 font-mono text-xs text-danger">{error}</p> : null}
-      {!user ? (
-        <p className="mb-8 border border-line bg-panel/60 p-6 text-sm text-mist/80">
-          Sign in to load the paper book and live recommendations through the API gateway.
-          Dev admin: <span className="font-mono text-signal">admin@local.dev</span>
-        </p>
-      ) : null}
-      {children({ user, portfolio, recs, loading })}
+
+      <div
+        className={`transition-opacity duration-300 ${loading ? "opacity-50" : "opacity-100"}`}
+        style={{ transitionTimingFunction: "var(--ease-out)" }}
+      >
+        {children({ user, portfolio, recs, loading })}
+      </div>
     </div>
   );
 }

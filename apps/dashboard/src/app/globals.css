@@ -6,12 +6,163 @@
 
 :root {
   color-scheme: dark;
+  --ink: #0a0f0d;
+  --ink-elevated: #0e1512;
+  --panel: rgba(18, 26, 23, 0.72);
+  --panel-solid: #121a17;
+  --line: rgba(157, 181, 168, 0.12);
+  --line-strong: rgba(157, 181, 168, 0.2);
+  --mist: #9db5a8;
+  --signal: #3dcf91;
+  --warn: #e8b84a;
+  --danger: #e85d5d;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-ink text-mist font-display antialiased min-h-screen;
+  @apply text-mist font-display antialiased min-h-screen;
+  color: var(--mist);
+  background-color: var(--ink);
   background-image:
-    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(61, 207, 145, 0.12), transparent),
-    radial-gradient(ellipse 60% 40% at 90% 0%, rgba(232, 184, 74, 0.06), transparent),
-    linear-gradient(180deg, #0c1210 0%, #0a0f0d 100%);
+    radial-gradient(ellipse 90% 55% at 8% -8%, rgba(61, 207, 145, 0.1), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 92% 0%, rgba(232, 184, 74, 0.05), transparent 50%),
+    linear-gradient(180deg, #0c1210 0%, #080c0a 100%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(61, 207, 145, 0.28);
+  color: #fff;
+}
+
+@layer components {
+  .surface {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition:
+      border-color 220ms var(--ease-out),
+      background-color 220ms var(--ease-out),
+      transform 220ms var(--ease-out);
+  }
+
+  .surface-hover:hover {
+    border-color: var(--line-strong);
+    background: rgba(18, 26, 23, 0.9);
+  }
+
+  .desk-input {
+    @apply w-full px-3 py-2.5 text-sm text-white outline-none;
+    background: rgba(10, 15, 13, 0.85);
+    border: 1px solid var(--line);
+    transition:
+      border-color 180ms var(--ease-out),
+      box-shadow 180ms var(--ease-out);
+  }
+
+  .desk-input:focus {
+    border-color: rgba(61, 207, 145, 0.45);
+    box-shadow: 0 0 0 3px rgba(61, 207, 145, 0.1);
+  }
+
+  .desk-btn {
+    @apply font-mono text-[11px] uppercase tracking-[0.14em] px-4 py-2.5;
+    border: 1px solid var(--line);
+    transition:
+      color 180ms var(--ease-out),
+      border-color 180ms var(--ease-out),
+      background-color 180ms var(--ease-out),
+      transform 180ms var(--ease-out);
+  }
+
+  .desk-btn:active {
+    transform: translateY(1px);
+  }
+
+  .desk-btn-primary {
+    border-color: rgba(61, 207, 145, 0.45);
+    color: var(--signal);
+  }
+
+  .desk-btn-primary:hover {
+    background: rgba(61, 207, 145, 0.08);
+    border-color: rgba(61, 207, 145, 0.7);
+  }
+
+  .desk-btn-ghost:hover {
+    color: #fff;
+    border-color: var(--line-strong);
+  }
+
+  .fade-up {
+    animation: fadeUp 640ms var(--ease-out) both;
+  }
+
+  .fade-up-delay-1 {
+    animation-delay: 60ms;
+  }
+  .fade-up-delay-2 {
+    animation-delay: 120ms;
+  }
+  .fade-up-delay-3 {
+    animation-delay: 180ms;
+  }
+  .fade-up-delay-4 {
+    animation-delay: 240ms;
+  }
+
+  .pulse-dot {
+    animation: pulseSoft 2.4s var(--ease-out) infinite;
+  }
+
+  .row-slide {
+    transition: background-color 160ms var(--ease-out);
+  }
+
+  .row-slide:hover {
+    background: rgba(61, 207, 145, 0.04);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseSoft {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up,
+  .pulse-dot {
+    animation: none !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
 }

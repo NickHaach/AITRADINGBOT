@@ -95,23 +95,24 @@ export function MarketChartPanel({ ticker = "AAPL" }: { ticker?: string }) {
     lastClose != null && first != null && first !== 0 ? (lastClose - first) / first : null;
 
   return (
-    <section>
+    <section className="fade-up fade-up-delay-2">
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-medium text-white">{ticker} tape</h2>
-          <p className="mt-1 font-mono text-xs text-mist/60">
-            OHLCV history · live quote stream
-          </p>
+          <h2 className="text-lg font-medium tracking-tight text-white md:text-xl">{ticker}</h2>
+          <p className="mt-1 font-mono text-[11px] tracking-wide text-mist/45">Tape · live stream</p>
         </div>
         <div className="text-right font-mono text-xs">
-          <p className={status === "live" ? "text-signal" : "text-mist/50"}>
-            {status === "live" ? "STREAM LIVE" : status === "offline" ? "STREAM OFF" : "…"}
+          <p
+            className={`inline-flex items-center gap-2 ${status === "live" ? "text-signal" : "text-mist/40"}`}
+          >
+            {status === "live" ? <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-signal" /> : null}
+            {status === "live" ? "LIVE" : status === "offline" ? "OFF" : "…"}
           </p>
           {lastClose != null ? (
-            <p className="mt-1 text-sm text-white">${lastClose.toFixed(2)}</p>
+            <p className="mt-1 text-base tabular-nums text-white">${lastClose.toFixed(2)}</p>
           ) : null}
           {change != null ? (
-            <p className={`mt-0.5 ${change >= 0 ? "text-signal" : "text-danger"}`}>
+            <p className={`mt-0.5 tabular-nums ${change >= 0 ? "text-signal" : "text-danger"}`}>
               {change >= 0 ? "+" : ""}
               {(change * 100).toFixed(2)}%
             </p>
@@ -119,52 +120,54 @@ export function MarketChartPanel({ ticker = "AAPL" }: { ticker?: string }) {
         </div>
       </div>
 
-      <div className="border border-line bg-panel/40 p-3">
+      <div className="surface p-2 md:p-3">
         {bars.length === 0 ? (
-          <p className="p-8 text-center text-sm text-mist/70">
-            Start market data on :8002 to load bars.
-          </p>
+          <p className="p-10 text-center text-sm text-mist/50">Waiting for market data on :8002</p>
         ) : (
-          <div className="h-56 w-full">
+          <div className="h-60 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={bars} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <AreaChart data={bars} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="tapeFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3d9a6a" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#3d9a6a" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#3dcf91" stopOpacity={0.28} />
+                    <stop offset="100%" stopColor="#3dcf91" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <CartesianGrid stroke="rgba(157,181,168,0.06)" vertical={false} />
                 <XAxis
                   dataKey="t"
-                  tick={{ fill: "rgba(180,190,200,0.5)", fontSize: 10 }}
+                  tick={{ fill: "rgba(157,181,168,0.4)", fontSize: 10 }}
                   axisLine={false}
                   tickLine={false}
-                  minTickGap={28}
+                  minTickGap={32}
                 />
                 <YAxis
                   domain={["auto", "auto"]}
-                  tick={{ fill: "rgba(180,190,200,0.5)", fontSize: 10 }}
+                  tick={{ fill: "rgba(157,181,168,0.4)", fontSize: 10 }}
                   axisLine={false}
                   tickLine={false}
-                  width={48}
+                  width={44}
                 />
                 <Tooltip
                   contentStyle={{
-                    background: "#0f1419",
-                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(10, 15, 13, 0.95)",
+                    border: "1px solid rgba(157,181,168,0.15)",
                     borderRadius: 0,
                     fontSize: 12,
+                    backdropFilter: "blur(8px)",
                   }}
-                  labelStyle={{ color: "#9aa3ad" }}
+                  labelStyle={{ color: "#9db5a8" }}
+                  itemStyle={{ color: "#3dcf91" }}
                 />
                 <Area
                   type="monotone"
                   dataKey="close"
-                  stroke="#3d9a6a"
+                  stroke="#3dcf91"
                   fill="url(#tapeFill)"
-                  strokeWidth={1.5}
-                  isAnimationActive={false}
+                  strokeWidth={1.6}
+                  isAnimationActive
+                  animationDuration={700}
+                  animationEasing="ease-out"
                 />
               </AreaChart>
             </ResponsiveContainer>

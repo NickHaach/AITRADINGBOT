@@ -4,9 +4,9 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        ink: "#0c1210",
+        ink: "#0a0f0d",
         panel: "#121a17",
-        line: "#1e2c26",
+        line: "rgba(157, 181, 168, 0.12)",
         mist: "#9db5a8",
         signal: "#3dcf91",
         warn: "#e8b84a",

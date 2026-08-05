@@ -14,7 +14,7 @@ function badgeClass(level: string): string {
   }
   if (v.includes("high") || v.includes("bearish") || v === "hold") return "text-warn";
   if (v.includes("bullish") || v === "buy") return "text-signal";
-  return "text-mist";
+  return "text-mist/60";
 }
 
 function pct(n: number): string {
@@ -29,82 +29,80 @@ export default async function HomePage() {
   ]);
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <header className="mb-12 border-b border-line pb-8">
-        <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Aether Desk</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-white md:text-5xl">
+    <main className="mx-auto max-w-6xl px-5 py-12 md:px-8 md:py-16">
+      <header className="fade-up mb-14 border-b border-line pb-10">
+        <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-signal">Aether Desk</p>
+        <h1 className="mt-4 max-w-xl text-4xl font-semibold tracking-tight text-white md:text-[3.25rem] md:leading-[1.1]">
           Investment assistant
         </h1>
-        <p className="mt-3 max-w-2xl text-base text-mist/90">
-          Multi-source intelligence, risk-gated paper execution, and explainable signals —
-          built like a research desk, not a tip sheet.
+        <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-mist/70">
+          Multi-source intelligence, risk-gated paper execution, and explainable signals.
         </p>
-        <div className="mt-6 flex flex-wrap gap-4 font-mono text-xs">
+        <div className="mt-8 flex flex-wrap items-center gap-2 font-mono text-[11px]">
           <StatusDot ok={health.api} label="API" />
           <StatusDot ok={health.news} label="News" />
           <StatusDot ok={health.market} label="Market" />
           <StatusDot ok={health.announcements} label="Filings" />
-          <StatusDot ok={health.portfolio} label="Portfolio" />
-          <span className="rounded border border-line px-3 py-1.5 text-warn">EXECUTION: PAPER</span>
+          <StatusDot ok={health.portfolio} label="Book" />
+          <span className="ml-1 border border-warn/30 px-2.5 py-1.5 tracking-[0.12em] text-warn/90">
+            PAPER
+          </span>
         </div>
       </header>
 
       <DeskSession>
         {({ user, portfolio, recs }) => (
           <>
-            <section className="mb-10 grid gap-4 md:grid-cols-4">
-              <Metric
-                label="Equity"
-                value={user ? `$${portfolio.equity.toLocaleString()}` : "—"}
-              />
+            <section className="fade-up fade-up-delay-2 mb-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric label="Equity" value={user ? `$${portfolio.equity.toLocaleString()}` : "—"} />
               <Metric label="Cash" value={user ? `$${portfolio.cash.toLocaleString()}` : "—"} />
               <Metric label="Drawdown" value={user ? pct(portfolio.drawdown) : "—"} />
               <Metric label="News / filings" value={`${news.length} / ${announcements.length}`} />
             </section>
 
-            <section className="mb-12">
+            <section className="mb-14">
               <MarketChartPanel ticker="AAPL" />
             </section>
 
-            <div className="mb-12 grid gap-8 lg:grid-cols-2">
+            <div className="fade-up fade-up-delay-3 mb-14 grid gap-10 lg:grid-cols-2">
               <section>
                 <SectionTitle
                   title="Positions"
-                  hint={
-                    !user
-                      ? "sign in for paper book"
-                      : portfolio.source === "live"
-                        ? "via gateway JWT → portfolio"
-                        : "demo fallback"
-                  }
+                  hint={!user ? "sign in" : portfolio.source === "live" ? "live book" : "demo"}
                 />
                 {!user ? (
-                  <Empty hint="Authenticate to load positions through the API gateway." />
+                  <Empty hint="Authenticate to load the paper book." />
                 ) : (
-                  <div className="overflow-hidden border border-line">
+                  <div className="surface overflow-hidden">
                     <table className="w-full text-left text-sm">
-                      <thead className="font-mono text-[11px] uppercase tracking-wider text-mist/50">
+                      <thead className="font-mono text-[10px] uppercase tracking-[0.14em] text-mist/40">
                         <tr className="border-b border-line">
-                          <th className="px-4 py-3">Ticker</th>
-                          <th className="px-4 py-3">Qty</th>
-                          <th className="px-4 py-3">Last</th>
-                          <th className="px-4 py-3">PnL</th>
-                          <th className="px-4 py-3">Weight</th>
+                          <th className="px-4 py-3 font-medium">Ticker</th>
+                          <th className="px-4 py-3 font-medium">Qty</th>
+                          <th className="px-4 py-3 font-medium">Last</th>
+                          <th className="px-4 py-3 font-medium">PnL</th>
+                          <th className="px-4 py-3 font-medium">Weight</th>
                         </tr>
                       </thead>
                       <tbody>
                         {portfolio.positions.map((p) => (
-                          <tr key={p.ticker} className="border-b border-line/70 last:border-0">
-                            <td className="px-4 py-3 font-medium text-white">{p.ticker}</td>
-                            <td className="px-4 py-3 font-mono text-xs">{p.qty}</td>
-                            <td className="px-4 py-3 font-mono text-xs">${p.last.toFixed(2)}</td>
+                          <tr key={p.ticker} className="row-slide border-b border-line/60 last:border-0">
+                            <td className="px-4 py-3.5 font-medium text-white">{p.ticker}</td>
+                            <td className="px-4 py-3.5 font-mono text-xs tabular-nums text-mist/80">
+                              {p.qty}
+                            </td>
+                            <td className="px-4 py-3.5 font-mono text-xs tabular-nums text-mist/80">
+                              ${p.last.toFixed(2)}
+                            </td>
                             <td
-                              className={`px-4 py-3 font-mono text-xs ${p.pnl >= 0 ? "text-signal" : "text-danger"}`}
+                              className={`px-4 py-3.5 font-mono text-xs tabular-nums ${p.pnl >= 0 ? "text-signal" : "text-danger"}`}
                             >
                               {p.pnl >= 0 ? "+" : ""}
                               {p.pnl}
                             </td>
-                            <td className="px-4 py-3 font-mono text-xs">{pct(p.weight)}</td>
+                            <td className="px-4 py-3.5 font-mono text-xs tabular-nums text-mist/60">
+                              {pct(p.weight)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -114,53 +112,51 @@ export default async function HomePage() {
               </section>
 
               <section>
-                <SectionTitle title="Risk dashboard" hint="hard gates from Risk Engine" />
-                <ul className="space-y-3">
+                <SectionTitle title="Risk" hint="hard gates" />
+                <ul className="space-y-2">
                   <RiskRow label="Max position" value={pct(RISK_LIMITS.maxPositionPct)} ok />
                   <RiskRow label="Daily loss limit" value={pct(RISK_LIMITS.dailyLossPct)} ok />
                   <RiskRow label="Max drawdown" value={pct(RISK_LIMITS.maxDrawdownPct)} ok />
-                  <RiskRow label="Max sector exposure" value={pct(RISK_LIMITS.maxSectorPct)} ok />
+                  <RiskRow label="Max sector" value={pct(RISK_LIMITS.maxSectorPct)} ok />
                   <RiskRow
                     label="Current drawdown"
                     value={user ? pct(portfolio.drawdown) : "—"}
                     ok={!user || portfolio.drawdown < RISK_LIMITS.maxDrawdownPct}
                   />
-                  <li className="border border-line bg-panel/40 px-4 py-3 text-sm text-mist/80">
-                    Kill switch off · live trading disabled · paper broker only
+                  <li className="surface px-4 py-3 text-sm text-mist/55">
+                    Kill switch off · live trading disabled
                   </li>
                 </ul>
               </section>
             </div>
 
-            <section className="mb-12">
-              <SectionTitle title="AI recommendations" hint="explainability panel" />
+            <section className="fade-up fade-up-delay-4 mb-14">
+              <SectionTitle title="Recommendations" hint="explainable" />
               {!user ? (
                 <Empty hint="Sign in to load live recommendations." />
               ) : (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2">
                   {recs.map((r) => (
-                    <article key={r.ticker} className="border border-line bg-panel/40 px-5 py-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-lg text-white">{r.ticker}</h3>
-                        <span className={`font-mono text-xs uppercase ${badgeClass(r.action)}`}>
+                    <article key={r.ticker} className="surface surface-hover px-5 py-5">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <h3 className="text-lg tracking-tight text-white">{r.ticker}</h3>
+                        <span className={`font-mono text-[11px] uppercase tracking-wider ${badgeClass(r.action)}`}>
                           {r.action}
                         </span>
                       </div>
-                      <p className="mt-2 text-sm text-mist/85">{r.why}</p>
-                      <div className="mt-3 flex flex-wrap gap-3 font-mono text-[11px] text-mist/55">
+                      <p className="mt-3 text-sm leading-relaxed text-mist/70">{r.why}</p>
+                      <div className="mt-4 flex flex-wrap gap-4 font-mono text-[11px] text-mist/40">
                         <span>conf {pct(r.confidence)}</span>
                         <span>E[r] {pct(r.expectedReturn)}</span>
                       </div>
-                      <div className="mt-3">
-                        <p className="font-mono text-[10px] uppercase tracking-wider text-mist/40">
-                          Risks
-                        </p>
-                        <ul className="mt-1 space-y-1 text-sm text-mist/75">
-                          {r.risks.map((risk) => (
-                            <li key={risk}>· {risk}</li>
-                          ))}
-                        </ul>
-                      </div>
+                      <ul className="mt-4 space-y-1.5 border-t border-line pt-4 text-sm text-mist/55">
+                        {r.risks.map((risk) => (
+                          <li key={risk} className="flex gap-2">
+                            <span className="text-mist/25">—</span>
+                            {risk}
+                          </li>
+                        ))}
+                      </ul>
                     </article>
                   ))}
                 </div>
@@ -170,22 +166,22 @@ export default async function HomePage() {
         )}
       </DeskSession>
 
-      <div className="mb-12 grid gap-8 lg:grid-cols-2">
+      <div className="fade-up fade-up-delay-4 grid gap-10 lg:grid-cols-2">
         <section>
-          <SectionTitle title="News intelligence" hint="classified · embedded · deduped" />
+          <SectionTitle title="News" hint="classified" />
           {news.length === 0 ? (
             <Empty hint="Start news on :8001 to populate." />
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-2">
               {news.map((article) => (
-                <li key={article.id} className="border border-line bg-panel/40 px-5 py-4">
-                  <div className="flex flex-wrap gap-3 font-mono text-[11px] uppercase tracking-wide">
+                <li key={article.id} className="surface surface-hover px-5 py-4">
+                  <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-[0.12em]">
                     <span className="text-signal">{article.category}</span>
-                    <span className={badgeClass(article.risk_level)}>risk:{article.risk_level}</span>
+                    <span className={badgeClass(article.risk_level)}>{article.risk_level}</span>
                     <span className={badgeClass(article.sentiment)}>{article.sentiment}</span>
                   </div>
-                  <h3 className="mt-2 text-base text-white">{article.title}</h3>
-                  <p className="mt-1 line-clamp-2 text-sm text-mist/80">{article.body}</p>
+                  <h3 className="mt-2.5 text-[15px] leading-snug text-white">{article.title}</h3>
+                  <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-mist/55">{article.body}</p>
                 </li>
               ))}
             </ul>
@@ -193,23 +189,25 @@ export default async function HomePage() {
         </section>
 
         <section>
-          <SectionTitle title="Filings & announcements" hint="impact-scored" />
+          <SectionTitle title="Filings" hint="impact-scored" />
           {announcements.length === 0 ? (
             <Empty hint="Start announcements on :8003 to populate." />
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-2">
               {announcements.map((a) => (
-                <li key={a.id} className="border border-line bg-panel/40 px-5 py-4">
-                  <div className="flex flex-wrap gap-3 font-mono text-[11px] uppercase">
+                <li key={a.id} className="surface surface-hover px-5 py-4">
+                  <div className="flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-[0.12em]">
                     <span className="text-signal">{a.company_ticker}</span>
-                    <span className="text-mist/50">{a.filing_type}</span>
+                    <span className="text-mist/40">{a.filing_type}</span>
                     <span className={a.impact_score >= 0 ? "text-signal" : "text-danger"}>
-                      impact {a.impact_score >= 0 ? "+" : ""}
+                      {a.impact_score >= 0 ? "+" : ""}
                       {a.impact_score.toFixed(2)}
                     </span>
                   </div>
-                  <h3 className="mt-2 text-base text-white">{a.title}</h3>
-                  {a.summary ? <p className="mt-1 text-sm text-mist/80">{a.summary}</p> : null}
+                  <h3 className="mt-2.5 text-[15px] leading-snug text-white">{a.title}</h3>
+                  {a.summary ? (
+                    <p className="mt-1.5 text-sm leading-relaxed text-mist/55">{a.summary}</p>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -222,8 +220,8 @@ export default async function HomePage() {
 
 function StatusDot({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded border border-line px-3 py-1.5">
-      <span className={`h-2 w-2 rounded-full ${ok ? "bg-signal" : "bg-danger"}`} />
+    <span className="inline-flex items-center gap-2 border border-line px-2.5 py-1.5 text-mist/70">
+      <span className={`h-1.5 w-1.5 rounded-full ${ok ? "bg-signal pulse-dot" : "bg-danger/80"}`} />
       {label}
     </span>
   );
@@ -231,27 +229,27 @@ function StatusDot({ ok, label }: { ok: boolean; label: string }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-line bg-panel/50 px-4 py-4">
-      <p className="font-mono text-[11px] uppercase tracking-wider text-mist/50">{label}</p>
-      <p className="mt-2 text-2xl font-medium text-white">{value}</p>
+    <div className="surface px-4 py-5">
+      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-mist/40">{label}</p>
+      <p className="mt-3 text-2xl font-medium tracking-tight tabular-nums text-white">{value}</p>
     </div>
   );
 }
 
 function SectionTitle({ title, hint }: { title: string; hint: string }) {
   return (
-    <div className="mb-4 flex items-end justify-between gap-3">
-      <h2 className="text-xl font-medium text-white">{title}</h2>
-      <span className="font-mono text-xs text-mist/60">{hint}</span>
+    <div className="mb-4 flex items-baseline justify-between gap-3">
+      <h2 className="text-lg font-medium tracking-tight text-white md:text-xl">{title}</h2>
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-mist/35">{hint}</span>
     </div>
   );
 }
 
 function RiskRow({ label, value, ok }: { label: string; value: string; ok: boolean }) {
   return (
-    <li className="flex items-center justify-between border border-line bg-panel/40 px-4 py-3 text-sm">
-      <span className="text-mist/80">{label}</span>
-      <span className={`font-mono text-xs ${ok ? "text-signal" : "text-danger"}`}>
+    <li className="surface flex items-center justify-between px-4 py-3 text-sm">
+      <span className="text-mist/65">{label}</span>
+      <span className={`font-mono text-[11px] tabular-nums ${ok ? "text-signal/90" : "text-danger"}`}>
         {ok ? "OK" : "WATCH"} · {value}
       </span>
     </li>
@@ -259,5 +257,5 @@ function RiskRow({ label, value, ok }: { label: string; value: string; ok: boole
 }
 
 function Empty({ hint }: { hint: string }) {
-  return <p className="border border-line bg-panel/60 p-6 text-sm text-mist/80">{hint}</p>;
+  return <p className="surface px-5 py-8 text-sm text-mist/50">{hint}</p>;
 }
