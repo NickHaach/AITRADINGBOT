@@ -1,6 +1,6 @@
 PYTHON ?= .venv/bin/python
 PIP ?= .venv/bin/pip
-export PYTHONPATH := packages/shared/src:services/api_gateway/src:services/news_intelligence/src:services/risk/src:services/execution/src:services/llm_reasoning/src:services/portfolio/src:services/prediction/src:services/market_data/src:services/company_announcements/src:services/macro/src:services/geopolitical/src:services/sentiment/src:services/learning/src:services/backtesting/src
+export PYTHONPATH := packages/shared/src:services/api_gateway/src:services/news_intelligence/src:services/risk/src:services/execution/src:services/llm_reasoning/src:services/portfolio/src:services/prediction/src:services/market_data/src:services/company_announcements/src:services/macro/src:services/geopolitical/src:services/sentiment/src:services/learning/src:services/backtesting/src:services/knowledge_graph/src
 
 .PHONY: bootstrap install test test-news lint up down logs migrate bootstrap-env run-api run-news run-market run-announcements
 
@@ -29,10 +29,11 @@ install:
 	$(PIP) install -e services/sentiment
 	$(PIP) install -e services/learning
 	$(PIP) install -e services/backtesting
-	$(PIP) install pytest pytest-asyncio httpx "fastapi[standard]" slowapi email-validator celery numpy python-multipart eval_type_backport 'bcrypt<4.1'
+	$(PIP) install -e services/knowledge_graph
+	$(PIP) install pytest pytest-asyncio httpx "fastapi[standard]" slowapi email-validator celery numpy python-multipart eval_type_backport 'bcrypt<4.1' aiosqlite scikit-learn
 
 test:
-	$(PYTHON) -m pytest packages/shared/tests services/news_intelligence/tests services/api_gateway/tests services/risk/tests services/llm_reasoning/tests services/portfolio/tests services/market_data/tests services/company_announcements/tests services/macro/tests services/geopolitical/tests services/sentiment/tests services/prediction/tests services/learning/tests services/backtesting/tests services/execution/tests tests/integration -q
+	$(PYTHON) -m pytest packages/shared/tests services/news_intelligence/tests services/api_gateway/tests services/risk/tests services/llm_reasoning/tests services/portfolio/tests services/market_data/tests services/company_announcements/tests services/macro/tests services/geopolitical/tests services/sentiment/tests services/prediction/tests services/learning/tests services/backtesting/tests services/execution/tests services/knowledge_graph/tests tests/integration -q
 
 test-news:
 	$(PYTHON) -m pytest services/news_intelligence/tests -q

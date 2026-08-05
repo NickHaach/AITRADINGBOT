@@ -270,3 +270,90 @@ class PortfolioSnapshotRow(Base):
     total_pnl: Mapped[Decimal] = mapped_column(Numeric(20, 6))
     drawdown_pct: Mapped[float] = mapped_column(Numeric(8, 6))
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MarketBarRow(Base):
+    __tablename__ = "market_bars"
+    __table_args__ = (
+        UniqueConstraint("ticker", "timestamp", name="uq_market_bar_ticker_ts"),
+        Index("ix_market_bars_ticker_ts", "ticker", "timestamp"),
+    )
+
+    id: Mapped[Any] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    ticker: Mapped[str] = mapped_column(String(32), index=True)
+    asset_class: Mapped[str] = mapped_column(String(32), default="stock")
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    open: Mapped[Decimal] = mapped_column(Numeric(20, 6))
+    high: Mapped[Decimal] = mapped_column(Numeric(20, 6))
+    low: Mapped[Decimal] = mapped_column(Numeric(20, 6))
+    close: Mapped[Decimal] = mapped_column(Numeric(20, 6))
+    volume: Mapped[Decimal] = mapped_column(Numeric(20, 4), default=0)
+    vwap: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 6), nullable=True)
+
+
+class MarketFeatureRow(Base):
+    __tablename__ = "market_features"
+
+    id: Mapped[Any] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    ticker: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_price: Mapped[float] = mapped_column(Numeric(20, 6))
+    returns_1d: Mapped[float] = mapped_column(Numeric(12, 6))
+    returns_5d: Mapped[float] = mapped_column(Numeric(12, 6))
+    returns_20d: Mapped[float] = mapped_column(Numeric(12, 6))
+    volatility_10d: Mapped[float] = mapped_column(Numeric(12, 6))
+    volatility_20d: Mapped[float] = mapped_column(Numeric(12, 6))
+    volume_zscore_20d: Mapped[float] = mapped_column(Numeric(12, 6))
+    liquidity_score: Mapped[float] = mapped_column(Numeric(8, 6))
+    trend_strength: Mapped[float] = mapped_column(Numeric(8, 6))
+    high_20d: Mapped[float] = mapped_column(Numeric(20, 6))
+    low_20d: Mapped[float] = mapped_column(Numeric(20, 6))
+    distance_from_high_20d: Mapped[float] = mapped_column(Numeric(12, 6))
+    bars_used: Mapped[int] = mapped_column()
+    payload: Mapped[Any] = mapped_column(JSON, default=dict)
+
+
+class TradeOutcomeRow(Base):
+    __tablename__ = "trade_outcomes"
+
+    id: Mapped[Any] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    signal_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), index=True)
+    trade_id: Mapped[Optional[Any]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    ticker: Mapped[str] = mapped_column(String(32), index=True)
+    action: Mapped[str] = mapped_column(String(32))
+    predicted_direction: Mapped[str] = mapped_column(String(8))
+    predicted_return: Mapped[float] = mapped_column(Numeric(12, 6))
+    probability_success: Mapped[float] = mapped_column(Numeric(6, 4))
+    confidence: Mapped[float] = mapped_column(Numeric(6, 4))
+    model_versions: Mapped[Any] = mapped_column(JSON, default=list)
+    actual_return: Mapped[float] = mapped_column(Numeric(12, 6))
+    holding_days: Mapped[int] = mapped_column()
+    correct_direction: Mapped[bool] = mapped_column(Boolean, default=False)
+    pnl: Mapped[float] = mapped_column(Numeric(20, 6))
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    notes: Mapped[str] = mapped_column(Text, default="")
+
+
+class GraphNodeRow(Base):
+    __tablename__ = "graph_nodes"
+    __table_args__ = (UniqueConstraint("node_type", "external_key", name="uq_graph_node_key"),)
+
+    id: Mapped[Any] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    node_type: Mapped[str] = mapped_column(String(64), index=True)
+    external_key: Mapped[str] = mapped_column(String(255))
+    label: Mapped[str] = mapped_column(String(512))
+    properties: Mapped[Any] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class GraphEdgeRow(Base):
+    __tablename__ = "graph_edges"
+    __table_args__ = (Index("ix_graph_edges_rel", "relationship"),)
+
+    id: Mapped[Any] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    from_node_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), ForeignKey("graph_nodes.id"), index=True)
+    to_node_id: Mapped[Any] = mapped_column(UUID(as_uuid=True), ForeignKey("graph_nodes.id"), index=True)
+    relationship: Mapped[str] = mapped_column(String(64))
+    weight: Mapped[float] = mapped_column(Numeric(8, 4), default=1.0)
+    properties: Mapped[Any] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

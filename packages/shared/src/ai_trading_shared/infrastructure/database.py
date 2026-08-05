@@ -1,5 +1,6 @@
+"""Async engine helpers with SQLite + Postgres support."""
+
 from __future__ import annotations
-"""Async SQLAlchemy engine and session factory."""
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -15,13 +16,14 @@ from ai_trading_shared.infrastructure.db_models import Base
 
 
 def create_engine(database_url: str, *, echo: bool = False) -> AsyncEngine:
-    return create_async_engine(
-        database_url,
-        echo=echo,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-    )
+    kwargs = {"echo": echo}
+    if database_url.startswith("sqlite"):
+        kwargs["connect_args"] = {"check_same_thread": False}
+    else:
+        kwargs["pool_pre_ping"] = True
+        kwargs["pool_size"] = 10
+        kwargs["max_overflow"] = 20
+    return create_async_engine(database_url, **kwargs)
 
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

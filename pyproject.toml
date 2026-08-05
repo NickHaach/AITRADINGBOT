@@ -22,6 +22,7 @@ members = [
   "services/portfolio",
   "services/learning",
   "services/backtesting",
+  "services/knowledge_graph",
 ]
 
 [dependency-groups]
