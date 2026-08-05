@@ -141,6 +141,21 @@ services:
       redis:
         condition: service_healthy
 
+  portfolio:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.portfolio
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://trading:trading_dev_password@postgres:5432/ai_trading
+      ENABLE_SQL_PERSISTENCE: "true"
+      USE_MOCK_MARKET_DATA: "true"
+    ports:
+      - "8008:8008"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   prometheus:
     image: prom/prometheus:v2.54.1
     volumes:
@@ -168,6 +183,7 @@ services:
       NEXT_PUBLIC_NEWS_URL: http://localhost:8001
       NEXT_PUBLIC_MARKET_URL: http://localhost:8002
       NEXT_PUBLIC_ANN_URL: http://localhost:8003
+      NEXT_PUBLIC_PORTFOLIO_URL: http://localhost:8008
     depends_on:
       - api_gateway
       - news_intelligence

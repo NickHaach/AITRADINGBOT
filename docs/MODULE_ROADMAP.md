@@ -17,13 +17,15 @@
 | **Learning dual-write + rolling `window_days` eval** | Done |
 | **Celery beat learning eval** (`evaluate_window_task` every 10m) | Done |
 | **Model registry register / promote / auto-promote** | Done |
+| **Prediction dual-write in trading pipeline** | Done |
+| **Portfolio desk API** (`:8008`) + live dashboard book | Done |
 
 ## Next increments
 
-1. Wire prediction dual-write into the execution pipeline
+1. Auth-gated gateway proxy for portfolio (JWT) once dashboard login lands
 2. TradingView lightweight widgets (optional upgrade over Recharts tape)
-3. Auth-gated dashboard portfolio API (replace demo book)
-4. Persist GBM artifacts to object storage and load production models at runtime
-5. Online calibration refresh from rolling Brier windows
+3. Persist GBM artifacts to object storage and load production models at runtime
+4. Online calibration refresh from rolling Brier windows
+5. Wire closed-trade outcomes from execution fills into Learning Engine automatically
 
 Each increment must ship with unit tests, module README, and mock adapters.

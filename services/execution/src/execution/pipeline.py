@@ -7,9 +7,9 @@ loop with hard risk gating and paper execution.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Protocol
 
-from ai_trading_shared.domain.entities import Signal
+from ai_trading_shared.domain.entities import Prediction, Signal
 from ai_trading_shared.domain.enums import AssetClass, SignalAction
 from ai_trading_shared.utils.logging import get_logger
 from execution.service import ExecutionService, PaperBroker
@@ -18,10 +18,15 @@ from market_data.infrastructure.adapters.mock_provider import MockMarketDataProv
 from market_data.infrastructure.repositories.memory import InMemoryMarketRepository
 from portfolio.manager import PortfolioManager
 from prediction.ensemble import HeuristicEnsemble
+from prediction.infrastructure.dual_write import DualWritePredictionStore
 from risk.engine import ProposedTrade, RiskConfig, RiskEngine
 from sentiment.engine import SentimentEngine
 
 logger = get_logger(__name__)
+
+
+class PortfolioSnapshotWriter(Protocol):
+    async def save(self, snapshot: Dict) -> Dict: ...
 
 
 class TradingPipeline:
@@ -32,6 +37,8 @@ class TradingPipeline:
         *,
         starting_cash: Decimal = Decimal("100000"),
         risk_config: Optional[RiskConfig] = None,
+        prediction_store: Optional[DualWritePredictionStore] = None,
+        portfolio_writer: Optional[PortfolioSnapshotWriter] = None,
     ) -> None:
         self.market = MarketDataService(
             provider=MockMarketDataProvider(),
@@ -43,6 +50,8 @@ class TradingPipeline:
         self.broker = PaperBroker()
         self.execution = ExecutionService(self.broker, live_enabled=False)
         self.portfolio = PortfolioManager(starting_cash)
+        self.prediction_store = prediction_store or DualWritePredictionStore()
+        self.portfolio_writer = portfolio_writer
         self.signals: List[Signal] = []
         self.rejected: List[Dict] = []
         self.fills: List[Dict] = []
@@ -80,6 +89,7 @@ class TradingPipeline:
                 sentiment_score=sent.composite,
                 announcement_impact=announcement_impact.get(ticker, 0.0),
             )
+            await self._persist_prediction(prediction)
             action = self._action_from_prediction(prediction.direction_prob_up, prediction.expected_return)
             signal = Signal(
                 ticker=ticker,
@@ -157,6 +167,7 @@ class TradingPipeline:
             if f:
                 final_prices[t] = Decimal(str(round(f.last_price, 4)))
         final = self.portfolio.mark_to_market(final_prices)
+        await self._persist_portfolio(final)
         return {
             "approved_trades": approved,
             "rejected_trades": rejected,
@@ -167,6 +178,87 @@ class TradingPipeline:
             "fills": self.fills,
             "rejected": self.rejected,
         }
+
+    async def _persist_prediction(self, prediction: Prediction) -> None:
+        try:
+            await self.prediction_store.save(prediction)
+        except Exception:
+            logger.exception("prediction_persist_failed", ticker=prediction.ticker)
+
+    async def _persist_portfolio(self, snapshot) -> None:
+        if self.portfolio_writer is None:
+            return
+        try:
+            payload = {
+                "id": snapshot.id,
+                "cash": snapshot.cash,
+                "equity": snapshot.equity,
+                "positions": [p.model_dump(mode="json") for p in snapshot.positions],
+                "total_pnl": snapshot.total_pnl,
+                "drawdown_pct": snapshot.drawdown_pct,
+                "as_of": snapshot.as_of,
+            }
+            await self.portfolio_writer.save(payload)
+        except Exception:
+            logger.exception("portfolio_snapshot_persist_failed")
+
+    def latest_snapshot_payload(self) -> Dict:
+        history = self.portfolio.history
+        if not history:
+            empty = self.portfolio.mark_to_market({})
+            history = [empty]
+        snap = history[-1]
+        equity = float(snap.equity) or 1.0
+        positions = []
+        for p in snap.positions:
+            qty = float(p.quantity)
+            mv = float(p.market_value)
+            last = mv / qty if qty else float(p.avg_cost)
+            positions.append(
+                {
+                    "ticker": p.ticker,
+                    "qty": qty,
+                    "avgCost": float(p.avg_cost),
+                    "last": last,
+                    "pnl": float(p.unrealized_pnl),
+                    "weight": mv / equity if equity else 0.0,
+                    "marketValue": mv,
+                }
+            )
+        return {
+            "cash": float(snap.cash),
+            "equity": float(snap.equity),
+            "drawdown": float(snap.drawdown_pct),
+            "totalPnl": float(snap.total_pnl),
+            "positions": positions,
+            "asOf": snap.as_of.isoformat() if snap.as_of else None,
+        }
+
+    def recommendation_payloads(self, limit: int = 8) -> List[Dict]:
+        """Map recent non-HOLD signals into dashboard recommendation cards."""
+        cards: List[Dict] = []
+        for signal in reversed(self.signals):
+            if signal.action == SignalAction.HOLD:
+                continue
+            pred = (signal.rationale or {}).get("prediction") or {}
+            risks = []
+            if signal.risk_score >= 0.6:
+                risks.append("Elevated model risk score")
+            if float(pred.get("volatility_forecast") or 0) >= 0.35:
+                risks.append("High realized vol regime")
+            cards.append(
+                {
+                    "ticker": signal.ticker,
+                    "action": signal.action.value.upper(),
+                    "confidence": float(signal.confidence),
+                    "expectedReturn": float(signal.expected_return),
+                    "why": f"{signal.action.value.upper()} from {', '.join(signal.model_versions[:2])}",
+                    "risks": risks or ["Monitor headline and liquidity risk"],
+                }
+            )
+            if len(cards) >= limit:
+                break
+        return cards
 
     @staticmethod
     def _action_from_prediction(prob_up: float, expected_return: float) -> SignalAction:

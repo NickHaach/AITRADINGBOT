@@ -1,0 +1,27 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+RUN pip install --no-cache-dir uv
+
+COPY pyproject.toml ./
+COPY packages/shared ./packages/shared
+COPY services/portfolio ./services/portfolio
+COPY services/execution ./services/execution
+COPY services/market_data ./services/market_data
+COPY services/prediction ./services/prediction
+COPY services/risk ./services/risk
+COPY services/sentiment ./services/sentiment
+
+RUN uv pip install --system \
+  -e packages/shared \
+  -e services/portfolio \
+  -e services/execution \
+  -e services/market_data \
+  -e services/prediction \
+  -e services/risk \
+  -e services/sentiment \
+  "fastapi[standard]" uvicorn numpy scikit-learn
+
+ENV PYTHONPATH=/app/packages/shared/src:/app/services/portfolio/src:/app/services/execution/src:/app/services/market_data/src:/app/services/prediction/src:/app/services/risk/src:/app/services/sentiment/src
+EXPOSE 8008
+CMD ["uvicorn", "portfolio.api.main:app", "--host", "0.0.0.0", "--port", "8008"]

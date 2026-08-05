@@ -1,10 +1,10 @@
 import {
   RISK_LIMITS,
-  demoPortfolio,
-  demoRecommendations,
   fetchAnnouncements,
   fetchHealth,
   fetchNews,
+  fetchPortfolio,
+  fetchRecommendations,
 } from "@/lib/api";
 import { MarketChartPanel } from "@/components/MarketChartPanel";
 
@@ -23,13 +23,13 @@ function pct(n: number): string {
 }
 
 export default async function HomePage() {
-  const [news, health, announcements] = await Promise.all([
+  const [news, health, announcements, portfolio, recs] = await Promise.all([
     fetchNews(8),
     fetchHealth(),
     fetchAnnouncements(6),
+    fetchPortfolio(),
+    fetchRecommendations(),
   ]);
-  const portfolio = demoPortfolio();
-  const recs = demoRecommendations();
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
@@ -47,6 +47,7 @@ export default async function HomePage() {
           <StatusDot ok={health.news} label="News" />
           <StatusDot ok={health.market} label="Market" />
           <StatusDot ok={health.announcements} label="Filings" />
+          <StatusDot ok={health.portfolio} label="Portfolio" />
           <span className="rounded border border-line px-3 py-1.5 text-warn">EXECUTION: PAPER</span>
         </div>
       </header>
@@ -64,7 +65,10 @@ export default async function HomePage() {
 
       <div className="mb-12 grid gap-8 lg:grid-cols-2">
         <section>
-          <SectionTitle title="Positions" hint="demo book until portfolio API is wired" />
+          <SectionTitle
+            title="Positions"
+            hint={portfolio.source === "live" ? "paper book from portfolio :8008" : "demo fallback — start portfolio on :8008"}
+          />
           <div className="overflow-hidden border border-line">
             <table className="w-full text-left text-sm">
               <thead className="font-mono text-[11px] uppercase tracking-wider text-mist/50">

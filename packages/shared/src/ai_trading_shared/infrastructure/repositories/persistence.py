@@ -17,6 +17,7 @@ from ai_trading_shared.domain.entities import Prediction
 from ai_trading_shared.infrastructure.db_models import (
     MarketBarRow,
     MarketFeatureRow,
+    PortfolioSnapshotRow,
     PredictionRow,
     TradeOutcomeRow,
 )
@@ -241,3 +242,61 @@ class OutcomePersistenceRepository:
                 }
                 for r in rows
             ]
+
+class PortfolioPersistenceRepository:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._factory = session_factory
+
+    async def save(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
+        async with self._factory() as session:
+            row = PortfolioSnapshotRow(
+                id=snapshot.get("id"),
+                cash=Decimal(str(snapshot["cash"])),
+                equity=Decimal(str(snapshot["equity"])),
+                positions=snapshot.get("positions") or [],
+                total_pnl=Decimal(str(snapshot["total_pnl"])),
+                drawdown_pct=float(snapshot["drawdown_pct"]),
+                as_of=snapshot.get("as_of") or datetime.utcnow(),
+            )
+            session.add(row)
+            await session.commit()
+            await session.refresh(row)
+            return {
+                "id": str(row.id),
+                "equity": float(row.equity),
+                "cash": float(row.cash),
+                "drawdown_pct": float(row.drawdown_pct),
+                "as_of": row.as_of.isoformat() if row.as_of else None,
+            }
+
+    async def latest(self) -> Optional[Dict[str, Any]]:
+        async with self._factory() as session:
+            row = await session.scalar(
+                select(PortfolioSnapshotRow).order_by(PortfolioSnapshotRow.as_of.desc()).limit(1)
+            )
+            if row is None:
+                return None
+            return _portfolio_row(row)
+
+    async def list_recent(self, limit: int = 50) -> List[Dict[str, Any]]:
+        async with self._factory() as session:
+            rows = (
+                await session.scalars(
+                    select(PortfolioSnapshotRow)
+                    .order_by(PortfolioSnapshotRow.as_of.desc())
+                    .limit(limit)
+                )
+            ).all()
+            return [_portfolio_row(r) for r in rows]
+
+
+def _portfolio_row(row: PortfolioSnapshotRow) -> Dict[str, Any]:
+    return {
+        "id": str(row.id),
+        "cash": float(row.cash),
+        "equity": float(row.equity),
+        "positions": row.positions or [],
+        "total_pnl": float(row.total_pnl),
+        "drawdown_pct": float(row.drawdown_pct),
+        "as_of": row.as_of.isoformat() if row.as_of else None,
+    }

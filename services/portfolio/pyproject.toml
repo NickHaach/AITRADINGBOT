@@ -3,7 +3,11 @@ name = "portfolio-manager"
 version = "0.1.0"
 description = "Portfolio Manager"
 requires-python = ">=3.9"
-dependencies = ["ai-trading-shared"]
+dependencies = [
+  "ai-trading-shared",
+  "fastapi>=0.112",
+  "uvicorn[standard]>=0.30",
+]
 
 [tool.uv.sources]
 ai-trading-shared = { workspace = true }

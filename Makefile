@@ -67,3 +67,6 @@ run-announcements:
 
 run-learning:
 	$(PYTHON) -m uvicorn learning.api.main:app --reload --port 8007
+
+run-portfolio:
+	$(PYTHON) -m uvicorn portfolio.api.main:app --reload --port 8008

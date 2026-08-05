@@ -12,6 +12,7 @@ from ai_trading_shared.infrastructure.database import create_engine, create_sess
 from ai_trading_shared.infrastructure.repositories.persistence import (
     MarketPersistenceRepository,
     OutcomePersistenceRepository,
+    PortfolioPersistenceRepository,
     PredictionPersistenceRepository,
 )
 
@@ -21,6 +22,7 @@ async def session_factory(tmp_path):
     from ai_trading_shared.infrastructure.db_models import (
         MarketBarRow,
         MarketFeatureRow,
+        PortfolioSnapshotRow,
         PredictionRow,
         TradeOutcomeRow,
     )
@@ -39,6 +41,9 @@ async def session_factory(tmp_path):
         )
         await conn.run_sync(
             lambda sync_conn: TradeOutcomeRow.__table__.create(sync_conn, checkfirst=True)
+        )
+        await conn.run_sync(
+            lambda sync_conn: PortfolioSnapshotRow.__table__.create(sync_conn, checkfirst=True)
         )
     factory = create_session_factory(engine)
     yield factory
@@ -127,3 +132,26 @@ async def test_prediction_and_outcome_persist(session_factory) -> None:
     assert saved["correct"] is True
     rows = await outcomes.list_recent(ticker="NVDA")
     assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_portfolio_snapshot_roundtrip(session_factory) -> None:
+    repo = PortfolioPersistenceRepository(session_factory)
+    now = datetime.now(timezone.utc)
+    saved = await repo.save(
+        {
+            "id": uuid4(),
+            "cash": 90000,
+            "equity": 101000,
+            "positions": [{"ticker": "AAPL", "quantity": "10"}],
+            "total_pnl": 1000,
+            "drawdown_pct": 0.02,
+            "as_of": now,
+        }
+    )
+    assert saved["equity"] == 101000.0
+    latest = await repo.latest()
+    assert latest is not None
+    assert latest["cash"] == 90000.0
+    history = await repo.list_recent(limit=5)
+    assert len(history) == 1
