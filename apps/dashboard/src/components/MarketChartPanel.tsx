@@ -22,10 +22,14 @@ type QuoteTick = {
   timestamp: string;
 };
 
-const MARKET_URL = process.env.NEXT_PUBLIC_MARKET_URL ?? "http://localhost:8002";
+/** Same-origin proxy for REST (avoids CORS). WS stays direct to market service. */
+const MARKET_HTTP =
+  typeof window === "undefined"
+    ? process.env.NEXT_PUBLIC_MARKET_URL ?? "http://127.0.0.1:8002"
+    : "/proxy/market";
 const MARKET_WS =
   process.env.NEXT_PUBLIC_MARKET_WS_URL ??
-  MARKET_URL.replace(/^http/, "ws") + "/v1/market/stream?tickers=AAPL,NVDA,SPY";
+  `${(process.env.NEXT_PUBLIC_MARKET_URL ?? "http://127.0.0.1:8002").replace(/^http/, "ws")}/v1/market/stream?tickers=AAPL,NVDA,SPY`;
 
 export function MarketChartPanel({ ticker = "AAPL" }: { ticker?: string }) {
   const [bars, setBars] = useState<BarPoint[]>([]);
@@ -36,7 +40,7 @@ export function MarketChartPanel({ ticker = "AAPL" }: { ticker?: string }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${MARKET_URL}/v1/market/${ticker}/bars?limit=40`, {
+        const res = await fetch(`${MARKET_HTTP}/v1/market/${ticker}/bars?limit=40`, {
           cache: "no-store",
         });
         if (!res.ok) return;
@@ -96,23 +100,33 @@ export function MarketChartPanel({ ticker = "AAPL" }: { ticker?: string }) {
 
   return (
     <section className="fade-up fade-up-delay-2">
-      <div className="mb-4 flex items-end justify-between gap-3">
+      <div className="mb-5 flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-lg font-medium tracking-tight text-white md:text-xl">{ticker}</h2>
-          <p className="mt-1 font-mono text-[11px] tracking-wide text-mist/45">Tape · live stream</p>
+          <h2 className="text-xl font-medium tracking-tight text-white md:text-[1.35rem]">{ticker}</h2>
+          <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-mist/40">
+            Tape · live stream
+          </p>
         </div>
-        <div className="text-right font-mono text-xs">
+        <div className="text-right">
           <p
-            className={`inline-flex items-center gap-2 ${status === "live" ? "text-signal" : "text-mist/40"}`}
+            className={`inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] ${
+              status === "live" ? "text-signal" : "text-mist/35"
+            }`}
           >
             {status === "live" ? <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-signal" /> : null}
-            {status === "live" ? "LIVE" : status === "offline" ? "OFF" : "…"}
+            {status === "live" ? "Live" : status === "offline" ? "Off" : "…"}
           </p>
           {lastClose != null ? (
-            <p className="mt-1 text-base tabular-nums text-white">${lastClose.toFixed(2)}</p>
+            <p className="mt-1.5 text-2xl font-medium tabular-nums tracking-tight text-white">
+              ${lastClose.toFixed(2)}
+            </p>
           ) : null}
           {change != null ? (
-            <p className={`mt-0.5 tabular-nums ${change >= 0 ? "text-signal" : "text-danger"}`}>
+            <p
+              className={`mt-0.5 font-mono text-xs tabular-nums ${
+                change >= 0 ? "text-signal" : "text-danger"
+              }`}
+            >
               {change >= 0 ? "+" : ""}
               {(change * 100).toFixed(2)}%
             </p>
@@ -120,41 +134,41 @@ export function MarketChartPanel({ ticker = "AAPL" }: { ticker?: string }) {
         </div>
       </div>
 
-      <div className="surface p-2 md:p-3">
+      <div className="border border-line bg-[rgba(7,11,9,0.45)] p-1 md:p-2">
         {bars.length === 0 ? (
-          <p className="p-10 text-center text-sm text-mist/50">Waiting for market data on :8002</p>
+          <p className="px-4 py-16 text-center text-sm text-mist/45">Waiting for market data on :8002</p>
         ) : (
-          <div className="h-60 w-full">
+          <div className="h-64 w-full md:h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={bars} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+              <AreaChart data={bars} margin={{ top: 12, right: 10, left: 0, bottom: 4 }}>
                 <defs>
                   <linearGradient id="tapeFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3dcf91" stopOpacity={0.28} />
+                    <stop offset="0%" stopColor="#3dcf91" stopOpacity={0.32} />
                     <stop offset="100%" stopColor="#3dcf91" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(157,181,168,0.06)" vertical={false} />
+                <CartesianGrid stroke="rgba(157,181,168,0.05)" vertical={false} />
                 <XAxis
                   dataKey="t"
-                  tick={{ fill: "rgba(157,181,168,0.4)", fontSize: 10 }}
+                  tick={{ fill: "rgba(157,181,168,0.35)", fontSize: 10 }}
                   axisLine={false}
                   tickLine={false}
-                  minTickGap={32}
+                  minTickGap={40}
                 />
                 <YAxis
                   domain={["auto", "auto"]}
-                  tick={{ fill: "rgba(157,181,168,0.4)", fontSize: 10 }}
+                  tick={{ fill: "rgba(157,181,168,0.35)", fontSize: 10 }}
                   axisLine={false}
                   tickLine={false}
-                  width={44}
+                  width={46}
                 />
                 <Tooltip
                   contentStyle={{
-                    background: "rgba(10, 15, 13, 0.95)",
-                    border: "1px solid rgba(157,181,168,0.15)",
+                    background: "rgba(7, 11, 9, 0.96)",
+                    border: "1px solid rgba(157,181,168,0.14)",
                     borderRadius: 0,
                     fontSize: 12,
-                    backdropFilter: "blur(8px)",
+                    backdropFilter: "blur(10px)",
                   }}
                   labelStyle={{ color: "#9db5a8" }}
                   itemStyle={{ color: "#3dcf91" }}
@@ -164,9 +178,9 @@ export function MarketChartPanel({ ticker = "AAPL" }: { ticker?: string }) {
                   dataKey="close"
                   stroke="#3dcf91"
                   fill="url(#tapeFill)"
-                  strokeWidth={1.6}
+                  strokeWidth={1.7}
                   isAnimationActive
-                  animationDuration={700}
+                  animationDuration={800}
                   animationEasing="ease-out"
                 />
               </AreaChart>

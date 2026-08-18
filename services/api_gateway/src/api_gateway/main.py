@@ -395,13 +395,15 @@ async def _proxy_portfolio(
     *,
     settings: Settings,
     params: dict | None = None,
+    json_body: dict | None = None,
+    timeout: float = 30.0,
 ) -> Any:
     import httpx
 
     url = f"{settings.portfolio_service_url.rstrip('/')}{path}"
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.request(method, url, params=params)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.request(method, url, params=params, json=json_body)
     except httpx.RequestError as exc:
         logger.exception("portfolio_proxy_unreachable", url=url)
         raise HTTPException(status_code=503, detail=f"Portfolio service unavailable: {exc}") from exc
@@ -410,6 +412,39 @@ async def _proxy_portfolio(
     if not response.content:
         return {}
     return response.json()
+
+
+@app.get("/v1/portfolio/broker")
+async def proxy_portfolio_broker(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.VIEWER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Any:
+    audit("portfolio.broker", user, request=request)
+    return await _proxy_portfolio("GET", "/v1/portfolio/broker", settings=settings)
+
+
+@app.post("/v1/portfolio/broker/connect")
+async def proxy_portfolio_broker_connect(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.TRADER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Any:
+    body = await request.json()
+    audit("portfolio.broker_connect", user, {"paper": body.get("paper", True)}, request)
+    return await _proxy_portfolio(
+        "POST", "/v1/portfolio/broker/connect", settings=settings, json_body=body
+    )
+
+
+@app.post("/v1/portfolio/broker/disconnect")
+async def proxy_portfolio_broker_disconnect(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.TRADER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Any:
+    audit("portfolio.broker_disconnect", user, request=request)
+    return await _proxy_portfolio("POST", "/v1/portfolio/broker/disconnect", settings=settings)
 
 
 @app.get("/v1/portfolio")
@@ -460,4 +495,85 @@ async def proxy_portfolio_run(
 ) -> Any:
     audit("portfolio.run", user, {"tickers": tickers}, request)
     params = {"tickers": tickers} if tickers else None
-    return await _proxy_portfolio("POST", "/v1/portfolio/run", settings=settings, params=params)
+    return await _proxy_portfolio(
+        "POST",
+        "/v1/portfolio/run",
+        settings=settings,
+        params=params,
+        timeout=60.0,
+    )
+
+
+@app.get("/v1/portfolio/blotter")
+async def proxy_portfolio_blotter(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.VIEWER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+    limit: int = 80,
+) -> Any:
+    audit("portfolio.blotter", user, request=request)
+    return await _proxy_portfolio(
+        "GET",
+        "/v1/portfolio/blotter",
+        settings=settings,
+        params={"limit": limit},
+    )
+
+
+@app.get("/v1/portfolio/journal")
+async def proxy_portfolio_journal(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.VIEWER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+    limit: int = 50,
+) -> Any:
+    audit("portfolio.journal", user, request=request)
+    return await _proxy_portfolio(
+        "GET",
+        "/v1/portfolio/journal",
+        settings=settings,
+        params={"limit": limit},
+    )
+
+
+@app.get("/v1/portfolio/autopilot")
+async def proxy_autopilot_get(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.VIEWER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Any:
+    audit("portfolio.autopilot.get", user, request=request)
+    return await _proxy_portfolio("GET", "/v1/portfolio/autopilot", settings=settings)
+
+
+@app.post("/v1/portfolio/autopilot")
+async def proxy_autopilot_update(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.TRADER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Any:
+    body = await request.json()
+    audit("portfolio.autopilot.update", user, body, request)
+    return await _proxy_portfolio(
+        "POST", "/v1/portfolio/autopilot", settings=settings, json_body=body
+    )
+
+
+@app.post("/v1/portfolio/autopilot/start")
+async def proxy_autopilot_start(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.TRADER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Any:
+    audit("portfolio.autopilot.start", user, request=request)
+    return await _proxy_portfolio("POST", "/v1/portfolio/autopilot/start", settings=settings)
+
+
+@app.post("/v1/portfolio/autopilot/stop")
+async def proxy_autopilot_stop(
+    request: Request,
+    user: Annotated[dict, Depends(require_role(Role.TRADER))],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Any:
+    audit("portfolio.autopilot.stop", user, request=request)
+    return await _proxy_portfolio("POST", "/v1/portfolio/autopilot/stop", settings=settings)

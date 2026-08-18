@@ -10,6 +10,14 @@ from ai_trading_shared.infrastructure.redis_bus import RedisEventBus
 from ai_trading_shared.utils.logging import get_logger
 from market_data.application.features import compute_features
 from market_data.domain.models import MarketFeatures, MarketDataPort, MarketRepositoryPort, OHLCVBar, Quote
+from market_data.infrastructure.adapters.mock_provider import (
+    CRYPTO_TICKERS,
+    DEFAULT_UNIVERSE,
+    EQUITY_TICKERS,
+    FOREX_TICKERS,
+    asset_class_for,
+    normalize_ticker,
+)
 
 logger = get_logger(__name__)
 
@@ -27,20 +35,22 @@ class MarketDataService:
         self._provider = provider
         self._repo = repository
         self._bus = event_bus
-        self._default_tickers = list(default_tickers or ["AAPL", "MSFT", "NVDA", "SPY", "QQQ", "XOM", "JPM"])
+        self._default_tickers = list(default_tickers or DEFAULT_UNIVERSE)
 
     async def refresh_ticker(
         self,
         ticker: str,
         *,
         lookback_days: int = 60,
-        asset_class: AssetClass = AssetClass.STOCK,
+        asset_class: Optional[AssetClass] = None,
     ) -> MarketFeatures:
+        symbol = normalize_ticker(ticker)
+        klass = asset_class or asset_class_for(symbol)
         bars = await self._provider.fetch_ohlcv(
-            ticker, lookback_days=lookback_days, asset_class=asset_class
+            symbol, lookback_days=lookback_days, asset_class=klass
         )
         if not bars:
-            raise ValueError(f"No bars returned for {ticker}")
+            raise ValueError(f"No bars returned for {symbol}")
         await self._repo.upsert_bars(bars)
         features = compute_features(bars)
         saved = await self._repo.save_features(features)
@@ -57,27 +67,37 @@ class MarketDataService:
                     },
                 ),
             )
-        logger.info("market_features_refreshed", ticker=ticker, bars=len(bars))
+        logger.info("market_features_refreshed", ticker=symbol, bars=len(bars), asset_class=klass.value)
         return saved
 
     async def refresh_universe(self, tickers: Optional[Sequence[str]] = None) -> List[MarketFeatures]:
-        targets = list(tickers or self._default_tickers)
+        targets = [normalize_ticker(t) for t in (tickers or self._default_tickers)]
         results: List[MarketFeatures] = []
         for ticker in targets:
             try:
-                results.append(await self.refresh_ticker(ticker))
+                results.append(await self.refresh_ticker(ticker, asset_class=asset_class_for(ticker)))
             except Exception:
                 logger.exception("ticker_refresh_failed", ticker=ticker)
         return results
 
     async def get_features(self, ticker: str) -> Optional[MarketFeatures]:
-        return await self._repo.get_features(ticker)
+        return await self._repo.get_features(normalize_ticker(ticker))
 
     async def get_bars(self, ticker: str, limit: int = 60) -> List[OHLCVBar]:
-        return await self._repo.get_bars(ticker, limit=limit)
+        return await self._repo.get_bars(normalize_ticker(ticker), limit=limit)
 
     async def get_quote(self, ticker: str) -> Quote:
-        return await self._provider.fetch_quote(ticker)
+        return await self._provider.fetch_quote(normalize_ticker(ticker))
 
     async def list_tickers(self) -> List[str]:
-        return await self._repo.list_tickers()
+        stored = await self._repo.list_tickers()
+        # Always expose the full default universe even before first refresh
+        merged = list(dict.fromkeys([*self._default_tickers, *stored]))
+        return merged
+
+    def universe_groups(self) -> dict:
+        return {
+            "equities": EQUITY_TICKERS,
+            "forex": FOREX_TICKERS,
+            "crypto": CRYPTO_TICKERS,
+        }

@@ -57,6 +57,23 @@ export type DemoRecommendation = {
   expectedReturn: number;
   why: string;
   risks: string[];
+  sources?: string[];
+  newsExcerpt?: string;
+  socialExcerpt?: string;
+};
+
+export type IntelligenceSummary = {
+  as_of?: string;
+  sources_used?: string[];
+  tickers_with_news?: string[];
+  tickers_with_social?: string[];
+  tickers_with_filings?: string[];
+  headline_count?: number;
+  social_count?: number;
+  macro_tickers?: string[];
+  geo_tickers?: string[];
+  sample_headlines?: { source?: string; title?: string; tickers?: string[] }[];
+  sample_social?: { ticker?: string; text?: string; source?: string }[];
 };
 
 async function safeJson<T>(url: string, fallback: T): Promise<T> {
@@ -173,6 +190,99 @@ export async function fetchRecommendationsAuthed(_token?: string | null): Promis
   }
 }
 
+export async function fetchBrokerStatus(): Promise<BrokerStatus> {
+  try {
+    const res = await authFetch("/v1/portfolio/broker");
+    if (!res.ok) {
+      return {
+        broker: "unknown",
+        connected: false,
+        mode: "local_paper",
+        has_alpaca_keys: false,
+        live_trading_armed: false,
+        live_connect_allowed: false,
+        account_ok: false,
+        docs: [],
+        setup_url: "https://app.alpaca.markets/paper/dashboard/overview",
+      };
+    }
+    return res.json();
+  } catch {
+    return {
+      broker: "unknown",
+      connected: false,
+      mode: "local_paper",
+      has_alpaca_keys: false,
+      live_trading_armed: false,
+      live_connect_allowed: false,
+      account_ok: false,
+      docs: [],
+      setup_url: "https://app.alpaca.markets/paper/dashboard/overview",
+    };
+  }
+}
+
+export type BrokerStatus = {
+  broker: string;
+  connected: boolean;
+  mode: string;
+  has_alpaca_keys: boolean;
+  live_trading_armed: boolean;
+  live_connect_allowed?: boolean;
+  account_ok?: boolean;
+  base_url?: string | null;
+  execution_mode?: string;
+  enable_live_trading?: boolean;
+  connected_via?: string;
+  error?: string;
+  account?: {
+    cash?: string;
+    equity?: string;
+    status?: string;
+    paper?: boolean;
+  };
+  docs: string[];
+  setup_url: string;
+};
+
+export async function connectAlpacaBroker(input: {
+  api_key: string;
+  secret_key: string;
+  paper?: boolean;
+}): Promise<BrokerStatus> {
+  const res = await authFetch("/v1/portfolio/broker/connect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: input.api_key,
+      secret_key: input.secret_key,
+      paper: input.paper ?? true,
+    }),
+  });
+  if (!res.ok) {
+    let message = "Broker connect failed";
+    try {
+      const payload = await res.json();
+      if (typeof payload?.detail === "string") message = payload.detail;
+      else if (payload?.detail) message = JSON.stringify(payload.detail);
+    } catch {
+      const detail = await res.text();
+      if (detail) message = detail;
+    }
+    throw new Error(message);
+  }
+  return res.json();
+}
+
+export async function disconnectAlpacaBroker(): Promise<BrokerStatus> {
+  const res = await authFetch("/v1/portfolio/broker/disconnect", { method: "POST" });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || "Disconnect failed");
+  }
+  return res.json();
+}
+
 export type CycleResult = {
   approved_trades?: number;
   rejected_trades?: number;
@@ -181,11 +291,94 @@ export type CycleResult = {
   equity?: number;
   cash?: number;
   signals?: number;
+  intelligence?: IntelligenceSummary;
+  cycle_id?: string;
+};
+
+export type BlotterEvent = {
+  type: string;
+  at?: string;
+  cycle_id?: string;
+  ticker?: string;
+  side?: string;
+  qty?: string;
+  price?: string;
+  reasons?: string[];
+  pnl?: number;
+  approved_trades?: number;
+  rejected_trades?: number;
+  closed_outcomes?: number;
+  sources?: string[];
+  headline_count?: number;
+  social_count?: number;
+  correct_direction?: boolean;
+  actual_return?: number;
+  predicted_return?: number;
+};
+
+export type BlotterResponse = {
+  events: BlotterEvent[];
+  cycles: Record<string, unknown>[];
+};
+
+export type JournalEntry = {
+  id: string;
+  ticker: string;
+  action: string;
+  predictedReturn: number;
+  actualReturn: number;
+  correctDirection: boolean;
+  pnl: number;
+  confidence: number;
+  holdingDays: number;
+  closedAt?: string | null;
+  sources: string[];
+  newsExcerpt?: string;
+  socialExcerpt?: string;
+  thesis?: string;
+  modelVersions?: string[];
+};
+
+export type JournalResponse = {
+  entries: JournalEntry[];
+  stats: {
+    sampleSize: number;
+    directionAccuracy: number | null;
+    avgPredictedReturn: number | null;
+    avgActualReturn: number | null;
+    avgPnl: number | null;
+  };
+  calibration: {
+    temperature: number;
+    updated?: boolean;
+    sampleSize?: number;
+  };
+  openLots: number;
+};
+
+export type AutopilotStatus = {
+  enabled: boolean;
+  interval_minutes: number;
+  quiet_start_hour: number;
+  quiet_end_hour: number;
+  kill_switch: boolean;
+  tickers?: string | null;
+  in_quiet_hours: boolean;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  last_error?: string | null;
+  last_result?: Record<string, unknown> | null;
+  runs: number;
 };
 
 export async function runPortfolioCycle(tickers?: string): Promise<CycleResult> {
   const qs = tickers ? `?tickers=${encodeURIComponent(tickers)}` : "";
-  const res = await authFetch(`/v1/portfolio/run${qs}`, { method: "POST" });
+  // Intel gather (RSS/Reddit/local) can take >8s — use a longer timeout.
+  const res = await fetchWithTimeout(
+    `${API_URL}/v1/portfolio/run${qs}`,
+    { method: "POST", credentials: "include", cache: "no-store" },
+    45000,
+  );
   if (!res.ok) {
     const detail = await res.text();
     throw new Error(detail || "Cycle failed");
@@ -193,8 +386,89 @@ export async function runPortfolioCycle(tickers?: string): Promise<CycleResult> 
   return res.json();
 }
 
+export async function fetchBlotter(limit = 80): Promise<BlotterResponse> {
+  const res = await authFetch(`/v1/portfolio/blotter?limit=${limit}`);
+  if (!res.ok) return { events: [], cycles: [] };
+  return res.json();
+}
+
+export async function fetchJournal(limit = 50): Promise<JournalResponse> {
+  const res = await authFetch(`/v1/portfolio/journal?limit=${limit}`);
+  if (!res.ok) {
+    return {
+      entries: [],
+      stats: {
+        sampleSize: 0,
+        directionAccuracy: null,
+        avgPredictedReturn: null,
+        avgActualReturn: null,
+        avgPnl: null,
+      },
+      calibration: { temperature: 1.2 },
+      openLots: 0,
+    };
+  }
+  return res.json();
+}
+
+export async function fetchAutopilot(): Promise<AutopilotStatus | null> {
+  const res = await authFetch("/v1/portfolio/autopilot");
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function updateAutopilot(body: Partial<AutopilotStatus> & {
+  enabled: boolean;
+  interval_minutes: number;
+  quiet_start_hour: number;
+  quiet_end_hour: number;
+  kill_switch: boolean;
+}): Promise<AutopilotStatus> {
+  const res = await authFetch("/v1/portfolio/autopilot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || "Autopilot update failed");
+  }
+  return res.json();
+}
+
+export async function startAutopilot(): Promise<AutopilotStatus> {
+  const res = await authFetch("/v1/portfolio/autopilot/start", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to start autopilot");
+  return res.json();
+}
+
+export async function stopAutopilot(): Promise<AutopilotStatus> {
+  const res = await authFetch("/v1/portfolio/autopilot/stop", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to stop autopilot");
+  return res.json();
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  ms = 8000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("API not reachable — is the gateway running on :8000?");
+    }
+    throw new Error("API not reachable — is the gateway running on :8000?");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(`${API_URL}${path}`, {
+  return fetchWithTimeout(`${API_URL}${path}`, {
     ...init,
     credentials: "include",
     cache: "no-store",
@@ -211,21 +485,30 @@ export async function sessionLogin(email: string, password: string): Promise<{
   const body = new URLSearchParams();
   body.set("username", email);
   body.set("password", password);
-  const res = await fetch(`${API_URL}/v1/auth/session/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-    credentials: "include",
-  });
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`${API_URL}/v1/auth/session/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      credentials: "include",
+    });
+  } catch (err) {
+    throw err instanceof Error ? err : new Error("Sign-in failed");
+  }
   if (!res.ok) throw new Error("Invalid credentials");
   return res.json();
 }
 
 export async function sessionLogout(): Promise<void> {
-  await fetch(`${API_URL}/v1/auth/session/logout`, {
-    method: "POST",
-    credentials: "include",
-  });
+  try {
+    await fetchWithTimeout(`${API_URL}/v1/auth/session/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch {
+    /* ignore offline logout */
+  }
 }
 
 export async function fetchMe(): Promise<{
@@ -234,9 +517,13 @@ export async function fetchMe(): Promise<{
   full_name: string;
   role: string;
 } | null> {
-  const res = await authFetch("/v1/me");
-  if (!res.ok) return null;
-  return res.json();
+  try {
+    const res = await authFetch("/v1/me");
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 /** @deprecated Prefer sessionLogin — kept for API clients */

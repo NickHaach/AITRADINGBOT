@@ -78,9 +78,14 @@ class ExecutionService:
 
     def __init__(self, broker: BrokerPort, *, live_enabled: bool = False) -> None:
         self._broker = broker
+        # live_enabled = allow non-local brokers (Alpaca paper or live).
+        # Real-money URL is still gated inside AlpacaBroker.
         self._live_enabled = live_enabled
 
     async def execute(self, order: Order, fill_price: Decimal) -> Order:
         if self._broker.name != "paper" and not self._live_enabled:
-            raise RuntimeError("Live broker execution is disabled")
+            raise RuntimeError(
+                "External broker execution is disabled — configure Alpaca keys "
+                "or use the local paper broker"
+            )
         return await self._broker.submit(order, fill_price)

@@ -2,7 +2,7 @@ PYTHON ?= .venv/bin/python
 PIP ?= .venv/bin/pip
 export PYTHONPATH := packages/shared/src:services/api_gateway/src:services/news_intelligence/src:services/risk/src:services/execution/src:services/llm_reasoning/src:services/portfolio/src:services/prediction/src:services/market_data/src:services/company_announcements/src:services/macro/src:services/geopolitical/src:services/sentiment/src:services/learning/src:services/backtesting/src:services/knowledge_graph/src
 
-.PHONY: bootstrap install test test-news lint up down logs migrate bootstrap-env run-api run-news run-market run-announcements
+.PHONY: bootstrap install test test-news lint up down logs migrate bootstrap-env run-api run-news run-market run-announcements run-desk
 
 bootstrap-env:
 	@test -f .env || cp .env.example .env
@@ -70,3 +70,6 @@ run-learning:
 
 run-portfolio:
 	$(PYTHON) -m uvicorn portfolio.api.main:app --reload --port 8008
+
+run-desk:
+	bash scripts/dev-desk.sh

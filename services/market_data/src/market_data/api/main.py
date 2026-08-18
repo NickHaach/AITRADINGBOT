@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from ai_trading_shared.config import Settings, get_settings
@@ -97,6 +98,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Market Data Engine", version="0.1.0", lifespan=lifespan)
+_settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
@@ -175,9 +184,18 @@ async def list_tickers(service: Annotated[MarketDataService, Depends(get_service
     return await service.list_tickers()
 
 
+@app.get("/v1/market/universe")
+async def market_universe(service: Annotated[MarketDataService, Depends(get_service)]) -> dict:
+    """Grouped equities / forex / crypto for the desk markets board."""
+    return service.universe_groups()
+
+
 @app.websocket("/v1/market/stream")
-async def market_stream(websocket: WebSocket, tickers: str = "AAPL,NVDA,SPY") -> None:
-    """Push quotes every 2s for dashboard live charts."""
+async def market_stream(
+    websocket: WebSocket,
+    tickers: str = "AAPL,NVDA,EURUSD,GBPUSD,BTCUSD,ETHUSD",
+) -> None:
+    """Push quotes every 1s for dashboard live tapes."""
     await websocket.accept()
     symbols = [t.strip().upper() for t in tickers.split(",") if t.strip()] or ["AAPL"]
     service = get_service()
@@ -199,7 +217,7 @@ async def market_stream(websocket: WebSocket, tickers: str = "AAPL,NVDA,SPY") ->
                 except Exception:
                     logger.exception("stream_quote_failed", ticker=symbol)
             await websocket.send_json({"quotes": payload})
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(1.0)
     except WebSocketDisconnect:
         logger.info("market_stream_disconnected")
 

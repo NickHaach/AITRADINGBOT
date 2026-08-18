@@ -6,6 +6,31 @@ ML/LLM reasoning → risk-gated execution → continuous learning.
 > **Default: paper trading only.** Live brokers stay disabled until you
 > explicitly enable them and pass risk configuration.
 
+## Connect a broker (Alpaca)
+
+From the desk (signed in as trader/admin):
+
+1. Open [Alpaca paper](https://app.alpaca.markets/paper/dashboard/overview) and create Paper API keys.
+2. Paste them into the **Broker** panel → **Connect paper**.
+3. Hit **Run cycle** — approved trades submit to Alpaca paper.
+
+Or via `.env` (requires portfolio restart):
+
+```bash
+BROKER_ALPACA_API_KEY=...
+BROKER_ALPACA_SECRET_KEY=...
+BROKER_ALPACA_BASE_URL=https://paper-api.alpaca.markets
+```
+
+**Real money** additionally requires `EXECUTION_MODE=live`, `ENABLE_LIVE_TRADING=true`, and live base URL (dual confirmation).
+
+## Local desk (no Docker)
+
+```bash
+make run-desk          # api, news, market, filings, portfolio
+cd apps/dashboard && npm run dev
+```
+
 ## Quick start
 
 ```bash

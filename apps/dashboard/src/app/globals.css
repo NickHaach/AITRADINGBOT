@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&family=Syne:wght@500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,17 +6,20 @@
 
 :root {
   color-scheme: dark;
-  --ink: #0a0f0d;
-  --ink-elevated: #0e1512;
-  --panel: rgba(18, 26, 23, 0.72);
-  --panel-solid: #121a17;
-  --line: rgba(157, 181, 168, 0.12);
-  --line-strong: rgba(157, 181, 168, 0.2);
-  --mist: #9db5a8;
-  --signal: #3dcf91;
-  --warn: #e8b84a;
-  --danger: #e85d5d;
+  --ink: #070b10;
+  --ink-elevated: #0d1218;
+  --panel: rgba(14, 20, 28, 0.78);
+  --panel-solid: #101820;
+  --line: rgba(148, 174, 196, 0.12);
+  --line-strong: rgba(148, 174, 196, 0.24);
+  --mist: #9aadb8;
+  --ivory: #e8eef3;
+  --signal: #6eb8c9;
+  --gain: #5cbf9a;
+  --warn: #d4a05a;
+  --danger: #d47878;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
 }
 
 * {
@@ -28,83 +31,104 @@ html {
 }
 
 body {
-  @apply text-mist font-display antialiased min-h-screen;
+  @apply font-sans antialiased min-h-screen;
   color: var(--mist);
   background-color: var(--ink);
   background-image:
-    radial-gradient(ellipse 90% 55% at 8% -8%, rgba(61, 207, 145, 0.1), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 92% 0%, rgba(232, 184, 74, 0.05), transparent 50%),
-    linear-gradient(180deg, #0c1210 0%, #080c0a 100%);
+    radial-gradient(ellipse 85% 55% at 50% -15%, rgba(110, 184, 201, 0.09), transparent 55%),
+    radial-gradient(ellipse 45% 35% at 100% 0%, rgba(92, 191, 154, 0.05), transparent 50%),
+    linear-gradient(165deg, #0a1016 0%, #070b10 45%, #05080c 100%);
   background-attachment: fixed;
 }
 
 ::selection {
-  background: rgba(61, 207, 145, 0.28);
-  color: #fff;
+  background: rgba(110, 184, 201, 0.3);
+  color: var(--ivory);
 }
 
 @layer components {
   .surface {
     background: var(--panel);
     border: 1px solid var(--line);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
     transition:
-      border-color 220ms var(--ease-out),
-      background-color 220ms var(--ease-out),
-      transform 220ms var(--ease-out);
+      border-color 260ms var(--ease-out),
+      background-color 260ms var(--ease-out);
   }
 
   .surface-hover:hover {
     border-color: var(--line-strong);
-    background: rgba(18, 26, 23, 0.9);
+    background: rgba(18, 26, 34, 0.9);
+  }
+
+  .metric-rail {
+    display: grid;
+    background: rgba(12, 18, 24, 0.7);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
   }
 
   .desk-input {
-    @apply w-full px-3 py-2.5 text-sm text-white outline-none;
-    background: rgba(10, 15, 13, 0.85);
+    @apply w-full px-3.5 py-2.5 text-sm outline-none;
+    color: var(--ivory);
+    background: rgba(5, 8, 12, 0.6);
     border: 1px solid var(--line);
+    font-family: "DM Sans", system-ui, sans-serif;
     transition:
-      border-color 180ms var(--ease-out),
-      box-shadow 180ms var(--ease-out);
+      border-color 200ms var(--ease-out),
+      background-color 200ms var(--ease-out);
   }
 
   .desk-input:focus {
-    border-color: rgba(61, 207, 145, 0.45);
-    box-shadow: 0 0 0 3px rgba(61, 207, 145, 0.1);
+    border-color: rgba(110, 184, 201, 0.5);
+    background: rgba(5, 8, 12, 0.85);
+  }
+
+  .desk-input::placeholder {
+    color: rgba(154, 173, 184, 0.35);
   }
 
   .desk-btn {
-    @apply font-mono text-[11px] uppercase tracking-[0.14em] px-4 py-2.5;
+    @apply px-5 py-2.5 text-[11px] uppercase tracking-[0.18em];
+    font-family: "DM Sans", system-ui, sans-serif;
+    font-weight: 500;
     border: 1px solid var(--line);
     transition:
-      color 180ms var(--ease-out),
-      border-color 180ms var(--ease-out),
-      background-color 180ms var(--ease-out),
-      transform 180ms var(--ease-out);
+      color 200ms var(--ease-out),
+      border-color 200ms var(--ease-out),
+      background-color 200ms var(--ease-out);
   }
 
-  .desk-btn:active {
-    transform: translateY(1px);
+  .desk-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
   .desk-btn-primary {
-    border-color: rgba(61, 207, 145, 0.45);
-    color: var(--signal);
+    border-color: rgba(110, 184, 201, 0.55);
+    color: #061018;
+    background: var(--signal);
   }
 
-  .desk-btn-primary:hover {
-    background: rgba(61, 207, 145, 0.08);
-    border-color: rgba(61, 207, 145, 0.7);
+  .desk-btn-primary:hover:not(:disabled) {
+    background: #85c9d6;
+    border-color: #85c9d6;
   }
 
-  .desk-btn-ghost:hover {
-    color: #fff;
+  .desk-btn-ghost {
+    color: var(--mist);
+  }
+
+  .desk-btn-ghost:hover:not(:disabled) {
+    color: var(--ivory);
     border-color: var(--line-strong);
+    background: rgba(232, 238, 243, 0.04);
   }
 
   .fade-up {
-    animation: fadeUp 640ms var(--ease-out) both;
+    animation: fadeUp 800ms var(--ease-out) both;
   }
 
   .fade-up-delay-1 {
@@ -119,24 +143,205 @@ body {
   .fade-up-delay-4 {
     animation-delay: 240ms;
   }
+  .fade-up-delay-5 {
+    animation-delay: 300ms;
+  }
 
   .pulse-dot {
-    animation: pulseSoft 2.4s var(--ease-out) infinite;
+    animation: pulseSoft 2.8s var(--ease-soft) infinite;
   }
 
   .row-slide {
-    transition: background-color 160ms var(--ease-out);
+    transition: background-color 180ms var(--ease-out);
   }
 
   .row-slide:hover {
-    background: rgba(61, 207, 145, 0.04);
+    background: rgba(110, 184, 201, 0.05);
   }
+
+  .brand-mark {
+    font-family: "Syne", system-ui, sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--signal);
+    animation: brandIn 1s var(--ease-out) both;
+  }
+
+  .hero-title {
+    font-family: "Syne", system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    color: var(--ivory);
+  }
+
+  .hero-rule {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      rgba(110, 184, 201, 0.55),
+      rgba(154, 173, 184, 0.12) 42%,
+      transparent
+    );
+    transform-origin: left;
+    animation: ruleDraw 1s var(--ease-out) 140ms both;
+  }
+
+  .section-title {
+    font-family: "Syne", system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    color: var(--ivory);
+  }
+
+  .action-rail {
+    border-left: 1px solid transparent;
+  }
+
+  .action-rail-buy {
+    border-left-color: rgba(92, 191, 154, 0.8);
+  }
+
+  .action-rail-sell {
+    border-left-color: rgba(212, 120, 120, 0.8);
+  }
+
+  .action-rail-hold {
+    border-left-color: rgba(212, 160, 90, 0.7);
+  }
+
+  .text-gain {
+    color: var(--gain);
+  }
+
+  .desk-command {
+    background: rgba(7, 11, 16, 0.94);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .ticker-tape {
+    border-top: 1px solid rgba(148, 174, 196, 0.08);
+    background: rgba(5, 8, 12, 0.9);
+  }
+
+  .ticker-tape-rail {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .ticker-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 0.45rem 0.85rem;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(154, 173, 184, 0.4);
+    border-right: 1px solid var(--line);
+  }
+
+  .ticker-live.is-live {
+    color: var(--gain);
+  }
+
+  .ticker-track {
+    overflow: hidden;
+    flex: 1;
+    mask-image: linear-gradient(90deg, transparent, #000 2%, #000 98%, transparent);
+  }
+
+  .ticker-scroll {
+    display: flex;
+    width: max-content;
+    gap: 0;
+    animation: tapeScroll 48s linear infinite;
+  }
+
+  .ticker-scroll:hover {
+    animation-play-state: paused;
+  }
+
+  .ticker-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    padding: 0.45rem 1.1rem;
+    white-space: nowrap;
+    border-right: 1px solid rgba(148, 174, 196, 0.08);
+  }
+
+  .ticker-sym {
+    font-family: "DM Sans", system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--ivory);
+  }
+
+  .ticker-px {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(232, 238, 243, 0.78);
+  }
+
+  .ticker-chg {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ticker-chg.up {
+    color: var(--gain);
+  }
+
+  .ticker-chg.down {
+    color: var(--danger);
+  }
+
+  .ticker-chg.muted {
+    color: rgba(154, 173, 184, 0.3);
+  }
+
+  .quote-flash-up {
+    animation: flashUp 450ms var(--ease-out);
+  }
+
+  .quote-flash-down {
+    animation: flashDown 450ms var(--ease-out);
+  }
+}
+
+/* Map Tailwind signal utilities used for gains toward sage where intentional */
+.text-signal {
+  color: var(--signal);
+}
+
+.bg-signal {
+  background-color: var(--signal);
+}
+
+.border-signal\/35 {
+  border-color: rgba(110, 184, 201, 0.35);
+}
+
+.border-signal\/40 {
+  border-color: rgba(110, 184, 201, 0.4);
 }
 
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -144,21 +349,73 @@ body {
   }
 }
 
+@keyframes brandIn {
+  from {
+    opacity: 0;
+    letter-spacing: 0.4em;
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.28em;
+  }
+}
+
+@keyframes ruleDraw {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
 @keyframes pulseSoft {
   0%,
   100% {
     opacity: 1;
-    transform: scale(1);
   }
   50% {
-    opacity: 0.55;
-    transform: scale(0.92);
+    opacity: 0.4;
+  }
+}
+
+@keyframes tapeScroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes flashUp {
+  0% {
+    background-color: rgba(92, 191, 154, 0.22);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes flashDown {
+  0% {
+    background-color: rgba(212, 120, 120, 0.22);
+  }
+  100% {
+    background-color: transparent;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .fade-up,
-  .pulse-dot {
+  .pulse-dot,
+  .brand-mark,
+  .hero-rule,
+  .ticker-scroll,
+  .quote-flash-up,
+  .quote-flash-down {
     animation: none !important;
   }
 

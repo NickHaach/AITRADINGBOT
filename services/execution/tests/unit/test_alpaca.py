@@ -30,6 +30,36 @@ def test_factory_defaults_to_paper() -> None:
     assert isinstance(broker, PaperBroker)
 
 
+def test_factory_uses_alpaca_paper_with_keys() -> None:
+    from pydantic import SecretStr
+
+    settings = Settings(
+        execution_mode="paper",
+        enable_live_trading=False,
+        broker_alpaca_api_key=SecretStr("key"),
+        broker_alpaca_secret_key=SecretStr("secret"),
+        broker_alpaca_base_url="https://paper-api.alpaca.markets",
+    )
+    broker = build_broker_from_settings(settings)
+    assert isinstance(broker, AlpacaBroker)
+    assert not broker.is_live_endpoint
+
+
+def test_factory_falls_back_live_url_without_flags() -> None:
+    from pydantic import SecretStr
+
+    settings = Settings(
+        execution_mode="paper",
+        enable_live_trading=False,
+        broker_alpaca_api_key=SecretStr("key"),
+        broker_alpaca_secret_key=SecretStr("secret"),
+        broker_alpaca_base_url="https://api.alpaca.markets",
+    )
+    broker = build_broker_from_settings(settings)
+    assert isinstance(broker, AlpacaBroker)
+    assert not broker.is_live_endpoint
+
+
 @pytest.mark.asyncio
 async def test_alpaca_submit_maps_fill() -> None:
     broker = AlpacaBroker(
